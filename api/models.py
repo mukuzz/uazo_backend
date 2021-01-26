@@ -46,3 +46,13 @@ class QcInput(models.Model):
 
     def __str__(self):
         return f'{self.size} - {self.quantity} - {self.production_sesion.style}'
+
+
+class Defect(models.Model):
+    operation = models.CharField(max_length=256)
+    defect = models.CharField(max_length=256)
+
+
+class DefectInput(models.Model):
+    qcInput = models.ForeignKey(QcInput, on_delete=models.CASCADE)
+    defect = models.ForeignKey(Defect, on_delete=models.CASCADE)
