@@ -1,10 +1,10 @@
 from django.db import models
-import datetime
+from django.utils import timezone
 
 class ProductionOrder(models.Model):
     buyer = models.CharField(max_length=256)
     quantity = models.IntegerField()
-    receive_date_time = models.DateTimeField(default=datetime.datetime.now)
+    receive_date_time = models.DateTimeField(default=timezone.now)
     due_date_time = models.DateTimeField()
 
     def __str__(self):
@@ -17,6 +17,7 @@ class Style(models.Model):
     color = models.CharField(max_length=256)
     sizes = models.JSONField()
     name = models.CharField(max_length=256)
+    sam = models.FloatField()
     order = models.ForeignKey(ProductionOrder, on_delete=models.CASCADE)
 
     def __str__(self):
@@ -29,17 +30,17 @@ class ProductionSession(models.Model):
     operators = models.IntegerField()
     helpers = models.IntegerField()
     date = models.DateField()
-    start_time = models.DateTimeField(default=datetime.datetime.now)
-    end_time = models.DateTimeField(default=datetime.datetime.now)
+    start_time = models.DateTimeField(default=timezone.now)
+    end_time = models.DateTimeField(default=timezone.now)
     target = models.IntegerField()
 
     @property
     def is_active(self):
-        return datetime.datetime.now > self.start_time and \
-                datetime.datetime.now < self.end_time
+        return timezone.now > self.start_time and \
+                timezone.now < self.end_time
 
     def __str__(self):
-        return f'{self.start_time} - {self.end_time} - {self.style}'
+        return f'{timezone.localtime(self.start_time).hour} to {timezone.localtime(self.end_time).hour} - {self.style}'
 
 
 class Defect(models.Model):
@@ -56,6 +57,7 @@ QC_INPUT_TYPES = ['ftt', 'rejected', 'rectified', 'defective']
 
 class QcInput(models.Model):
     datetime = models.DateTimeField()
+    ftt = models.BooleanField(default=True)
     input_type = models.CharField(max_length=56)
     size = models.CharField(max_length=16)
     quantity = models.IntegerField()
