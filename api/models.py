@@ -6,6 +6,7 @@ class ProductionOrder(models.Model):
     quantity = models.IntegerField()
     receive_date_time = models.DateTimeField(default=timezone.now)
     due_date_time = models.DateTimeField()
+    completed = models.BooleanField(default=False)
 
     def __str__(self):
         return f'{self.buyer} - {self.quantity}'
@@ -33,11 +34,6 @@ class ProductionSession(models.Model):
     start_time = models.DateTimeField(default=timezone.now)
     end_time = models.DateTimeField(default=timezone.now)
     target = models.IntegerField()
-
-    @property
-    def is_active(self):
-        return timezone.now > self.start_time and \
-                timezone.now < self.end_time
 
     def __str__(self):
         return f'{timezone.localtime(self.start_time).hour} to {timezone.localtime(self.end_time).hour} - {self.style}'

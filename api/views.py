@@ -12,6 +12,44 @@ class ProductionOrderViewSet(viewsets.ModelViewSet):
     # permission_classes = [permissions.IsAuthenticated]
     permission_classes = [permissions.AllowAny]
 
+    @action(detail=False)
+    def active(self, request):
+        active_orders = ProductionOrder.objects.filter(completed=False)
+        if len(active_orders) == 0:
+            return Response({'error':'No active orders found'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = self.get_serializer(active_orders, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, url_path='active-volume')
+    def active_volume(self, request):
+        active_orders = ProductionOrder.objects.filter(completed=False)
+        active_volume = 0
+        for order in active_orders:
+            active_volume += order.quantity
+        return Response({"data": active_volume})
+
+    @action(detail=False, url_path='active-progress')
+    def active_progress(self, request):
+        active_orders = ProductionOrder.objects.filter(completed=False)
+        produced = 0
+        for order in active_orders:
+            qc_inputs = QcInput.objects.filter(production_session__style__order=order)
+            for qc_input in qc_inputs:
+                if qc_input.input_type == "ftt" or qc_input.input_type == "rectified":
+                    produced += qc_input.quantity
+        return Response({"data": produced})
+    
+    @action(detail=True)
+    def progress(self, request, pk=None):
+        order = self.get_object()
+        qc_inputs = QcInput.objects.filter(production_session__style__order=order)
+        produced = 0
+        for qc_input in qc_inputs:
+            if qc_input.input_type == "ftt" or qc_input.input_type == "rectified":
+                produced += qc_input.quantity
+        status = {"produced": produced}
+        return Response(status)
+
 
 class StyleViewSet(viewsets.ModelViewSet):
     queryset = Style.objects.all()
@@ -26,10 +64,13 @@ class ProductionSessionViewSet(viewsets.ModelViewSet):
     
     @action(detail=False)
     def active(self, request):
-        production_sessions = ProductionSession.objects.all()
-        if len(production_sessions) == 0:
-            return Response({'error':'No sessions found'}, status=status.HTTP_404_NOT_FOUND)
-        serializer = self.get_serializer(production_sessions, many=True)
+        active_production_sessions = ProductionSession.objects.filter(
+            start_time__lte=timezone.now(),
+            end_time__gte=timezone.now()
+        )
+        if len(active_production_sessions) == 0:
+            return Response({'error':'No active sessions found'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = self.get_serializer(active_production_sessions, many=True)
         return Response(serializer.data)
     
     @action(detail=True)
@@ -110,3 +151,18 @@ class DefectViewSet(viewsets.ModelViewSet):
     queryset = Defect.objects.all()
     serializer_class = DefectSerializer
     permission_classes = [permissions.AllowAny]
+
+
+class ProductionLine(viewsets.ViewSet):
+    permission_classes = []
+
+    @action(detail=False)
+    def active(self, request):
+        active_production_sessions = ProductionSession.objects.filter(
+            start_time__lte=timezone.now(),
+            end_time__gte=timezone.now()
+        )
+        active_lines = set()
+        for session in active_production_sessions:
+            active_lines.add(session.line_number)
+        return Response({"data": len(active_lines)})
