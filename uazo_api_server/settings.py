@@ -28,7 +28,7 @@ SECRET_KEY = os.environ['SECRET_KEY']
 DEBUG = os.environ.get('DJANGO_DEV_ENV', '') == 'True'
 
 ALLOWED_HOSTS = ['localhost','uazo-serve.herokuapp.com']
-CORS_ALLOWED_ORIGINS = ["http://localhost:3000","https://uazo-serve.herokuapp.com"]
+CORS_ALLOWED_ORIGINS = ["http://localhost:3000","https://mukulsingh.in/"]
 
 if DEBUG:
     print('Running in DEVELOPMENT mode')
