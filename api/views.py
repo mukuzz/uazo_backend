@@ -33,7 +33,7 @@ class ProductionOrderViewSet(viewsets.ModelViewSet):
         active_orders = ProductionOrder.objects.filter(completed=False)
         produced = 0
         for order in active_orders:
-            qc_inputs = QcInput.objects.filter(production_session__style__order=order)
+            qc_inputs = QcInput.objects.filter(production_session__style__order=order, redacted=False)
             for qc_input in qc_inputs:
                 if qc_input.input_type == "ftt" or qc_input.input_type == "rectified":
                     produced += qc_input.quantity
@@ -84,9 +84,7 @@ class ProductionSessionViewSet(viewsets.ModelViewSet):
         # Rejected should be ignored if the piece came back after being marked defective.
         total_pieces_processed = 0
 
-        for qc_input in production_session.qcinput_set.all():
-            if qc_input.redacted:
-                continue
+        for qc_input in production_session.qcinput_set.filter(redacted=False):
             if qc_input.input_type == "ftt":
                 ftt += qc_input.quantity
             elif qc_input.input_type == "defective":
