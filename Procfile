@@ -1,0 +1,1 @@
+web: gunicorn uazo_api_server.wsgi --log-file -
