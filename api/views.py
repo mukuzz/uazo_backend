@@ -105,6 +105,9 @@ class ProductionSessionViewSet(viewsets.ModelViewSet):
             "buyer": style.order.buyer,
             "style_number": style.number,
             "style_name": style.name,
+            "defective": defective,
+            "rejected": rejected,
+            "rectified": rectified,
         }
         
         shift_start = production_session.start_time
