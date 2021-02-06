@@ -20,25 +20,6 @@ class ProductionOrderViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(active_orders, many=True)
         return Response(serializer.data)
     
-    @action(detail=False, url_path='active-volume')
-    def active_volume(self, request):
-        active_orders = ProductionOrder.objects.filter(completed=False)
-        active_volume = 0
-        for order in active_orders:
-            active_volume += order.quantity
-        return Response({"data": active_volume})
-
-    @action(detail=False, url_path='active-progress')
-    def active_progress(self, request):
-        active_orders = ProductionOrder.objects.filter(completed=False)
-        produced = 0
-        for order in active_orders:
-            qc_inputs = QcInput.objects.filter(production_session__style__order=order, redacted=False)
-            for qc_input in qc_inputs:
-                if qc_input.input_type == "ftt" or qc_input.input_type == "rectified":
-                    produced += qc_input.quantity
-        return Response({"data": produced})
-    
     @action(detail=True)
     def progress(self, request, pk=None):
         order = self.get_object()
@@ -99,8 +80,10 @@ class ProductionSessionViewSet(viewsets.ModelViewSet):
         
         total_pieces_processed += ftt + defective
 
+        target = production_session.target
         output = ftt + rectified
         stats = {
+            "target": target,
             "output": output,   
             "buyer": style.order.buyer,
             "style_number": style.number,
@@ -121,15 +104,18 @@ class ProductionSessionViewSet(viewsets.ModelViewSet):
             stats["line_efficiency"] = output * style.sam * 100 / (manpower * shift_mins_elapsed)
         
             # Calculate RTT
-            shift_seconds_elapsed = (timezone.now() - shift_start).total_seconds()
-            shift_seconds_remaining = (shift_end - timezone.now()).total_seconds()
-            rtt = output + (output / shift_seconds_elapsed) * shift_seconds_remaining
-            stats["rtt"] = rtt
+            shift_duration_seconds = (shift_end - shift_start).total_seconds()
+            shift_elapsed_seconds = (timezone.now() - shift_start).total_seconds()
+            shift_remaining_seconds = (shift_end - timezone.now()).total_seconds()
+            rtt = target * (shift_elapsed_seconds / shift_duration_seconds)
+            stats["rtt"] = math.ceil(rtt)
 
             # Calculate Variance
-            squared_difference = pow(production_session.target,2) - pow(rtt,2)
-            if squared_difference > 0:
-                stats["variance"] = math.sqrt(squared_difference)
+            stats["variance"] = math.ceil(target - rtt)
+
+            # Calculate Projected Output
+            production_rate = output / shift_elapsed_seconds
+            stats["projected_output"] = round(output + production_rate * shift_remaining_seconds)
 
         if ftt != 0:
             stats["ftt_rate"] = ftt * 100 / total_pieces_processed
@@ -154,11 +140,30 @@ class DefectViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
 
-class ProductionLine(viewsets.ViewSet):
+class Metric(viewsets.ViewSet):
     permission_classes = []
 
-    @action(detail=False)
-    def active(self, request):
+    @action(detail=False, url_path="active-order-volume")
+    def order_volume(self, request):
+        active_orders = ProductionOrder.objects.filter(completed=False)
+        active_volume = 0
+        for order in active_orders:
+            active_volume += order.quantity
+        return Response({"data": active_volume})
+
+    @action(detail=False, url_path="active-order-progress")
+    def order_progress(self, request):
+        active_orders = ProductionOrder.objects.filter(completed=False)
+        produced = 0
+        for order in active_orders:
+            qc_inputs = QcInput.objects.filter(production_session__style__order=order, redacted=False)
+            for qc_input in qc_inputs:
+                if qc_input.input_type == "ftt" or qc_input.input_type == "rectified":
+                    produced += qc_input.quantity
+        return Response({"data": produced})
+    
+    @action(detail=False, url_path="active-lines")
+    def active_lines(self, request):
         active_production_sessions = ProductionSession.objects.filter(
             start_time__lte=timezone.now(),
             end_time__gte=timezone.now()
@@ -167,3 +172,46 @@ class ProductionLine(viewsets.ViewSet):
         for session in active_production_sessions:
             active_lines.add(session.line_number)
         return Response({"data": len(active_lines)})
+
+    @action(detail=False, url_path="active-operators")
+    def active_operators(self, request):
+        active_production_sessions = ProductionSession.objects.filter(
+            start_time__lte=timezone.now(),
+            end_time__gte=timezone.now()
+        )
+        if len(active_production_sessions) == 0:
+            return Response({"data": 0})
+        operators_on_line = {}
+        for session in active_production_sessions:
+            try:
+                operators_on_line[session.line_number]
+            except KeyError:
+                operators_on_line[session.line_number] = 0
+            operators_on_line[session.line_number] = \
+                max(operators_on_line[session.line_number], session.operators)
+        operators = 0
+        for _, value in operators_on_line.items():
+            operators += value
+        return Response({"data": operators})
+        
+    @action(detail=False, url_path="active-helpers")
+    def active_helpers(self, request):
+        active_production_sessions = ProductionSession.objects.filter(
+            start_time__lte=timezone.now(),
+            end_time__gte=timezone.now()
+        )
+        if len(active_production_sessions) == 0:
+            return Response({"data": 0})
+        helpers_on_line = {}
+        for session in active_production_sessions:
+            try:
+                helpers_on_line[session.line_number]
+            except KeyError:
+                helpers_on_line[session.line_number] = 0
+            helpers_on_line[session.line_number] = \
+                max(helpers_on_line[session.line_number], session.helpers)
+        helpers = 0
+        for _, value in helpers_on_line.items():
+            helpers += value
+        return Response({"data": helpers})
+        
