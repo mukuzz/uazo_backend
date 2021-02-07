@@ -2,8 +2,12 @@ from .models import ProductionOrder, Style, ProductionSession, QcInput, Defect
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .serializers import ProductionOrderSerializer, StyleSerializer, ProductionSessionSerializer, QcInputSerializer, DefectSerializer
+from api.serializers.model_serializers import *
+from api.serializers.query_serializers import TimeSeriesRequestQuerySerializer
 from django.utils import timezone
+from datetime import timedelta
+from django.db.models import Sum, Count
+from django.db.models.functions import TruncMinute, TruncHour, TruncHour, TruncDate, TruncMonth
 import math
 
 class ProductionOrderViewSet(viewsets.ModelViewSet):
@@ -139,28 +143,64 @@ class DefectViewSet(viewsets.ModelViewSet):
     serializer_class = DefectSerializer
     permission_classes = [permissions.AllowAny]
 
+    @action(detail=False, url_path="most-frequent")
+    def most_frequent(self, request):
+        defects = Defect.objects.annotate(Count('qcinput')).order_by('-qcinput__count')
+        data = []
+        for defect in defects[:5]:
+            data.append({
+                "operation": defect.operation,
+                "defect": defect.defect,
+                "count": defect.qcinput__count
+            })
+        return Response({"data": data})
+
 
 class Metric(viewsets.ViewSet):
     permission_classes = []
 
-    @action(detail=False, url_path="active-order-volume")
-    def order_volume(self, request):
+    @action(detail=False, url_path="active-orders")
+    def active_orders(self, request):
         active_orders = ProductionOrder.objects.filter(completed=False)
-        active_volume = 0
+        data = []
         for order in active_orders:
-            active_volume += order.quantity
-        return Response({"data": active_volume})
-
-    @action(detail=False, url_path="active-order-progress")
-    def order_progress(self, request):
-        active_orders = ProductionOrder.objects.filter(completed=False)
-        produced = 0
-        for order in active_orders:
+            produced = 0
             qc_inputs = QcInput.objects.filter(production_session__style__order=order, redacted=False)
             for qc_input in qc_inputs:
                 if qc_input.input_type == "ftt" or qc_input.input_type == "rectified":
                     produced += qc_input.quantity
-        return Response({"data": produced})
+            data.append({"buyer": order.buyer, "produced": produced, "target": order.quantity})
+        return Response({"data": data})
+
+    @action(detail=False, url_path="output-timeseries")
+    def output_timeseries(self, request):
+        """
+        start -- starting time of timeseires
+        end -- ending time of timeseires
+        intervals -- number of x axis intervals
+        """
+        query_params = TimeSeriesRequestQuerySerializer(data=request.query_params)
+        query_params.is_valid(raise_exception=True)
+        start = query_params.validated_data['start']
+        end = query_params.validated_data['end']
+
+        if end - start > timedelta(days=90):
+            raise serializers.ValidationError({"date range should be less than or equal to 90 days"})
+        
+        qc_inputs = QcInput.objects.filter(
+            datetime__gte=start,
+            datetime__lte=end,
+            redacted=False,
+        ).order_by('datetime')
+
+        labels, data = [], []
+        output = 0
+        for qc_input in qc_inputs:
+            output += qc_input.quantity
+            labels.append(timezone.localtime(qc_input.datetime))
+            data.append(output)
+        return Response({"labels":labels, "data": data})
+
     
     @action(detail=False, url_path="active-lines")
     def active_lines(self, request):
@@ -214,4 +254,3 @@ class Metric(viewsets.ViewSet):
         for _, value in helpers_on_line.items():
             helpers += value
         return Response({"data": helpers})
-        
