@@ -6,7 +6,7 @@ from api.serializers.model_serializers import *
 from api.serializers.query_serializers import TimeSeriesRequestQuerySerializer
 from django.utils import timezone
 from datetime import timedelta
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Q
 from django.db.models.functions import TruncMinute, TruncHour, TruncHour, TruncDate, TruncMonth
 import math
 
@@ -110,7 +110,6 @@ class ProductionSessionViewSet(viewsets.ModelViewSet):
             # Calculate RTT
             shift_duration_seconds = (shift_end - shift_start).total_seconds()
             shift_elapsed_seconds = (timezone.now() - shift_start).total_seconds()
-            shift_remaining_seconds = (shift_end - timezone.now()).total_seconds()
             rtt = target * (shift_elapsed_seconds / shift_duration_seconds)
             stats["rtt"] = math.ceil(rtt)
 
@@ -119,6 +118,7 @@ class ProductionSessionViewSet(viewsets.ModelViewSet):
 
             # Calculate Projected Output
             production_rate = output / shift_elapsed_seconds
+            shift_remaining_seconds = (shift_end - timezone.now()).total_seconds()
             stats["projected_output"] = round(output + production_rate * shift_remaining_seconds)
 
         if ftt != 0:
@@ -212,6 +212,30 @@ class Metric(viewsets.ViewSet):
         for session in active_production_sessions:
             active_lines.add(session.line_number)
         return Response({"data": len(active_lines)})
+
+    @action(detail=False, url_path="factory-efficiency")
+    def factory_efficiency(self, request):
+        current_time = timezone.now()
+        active_production_sessions = ProductionSession.objects.filter(
+            start_time__lte=current_time,
+            end_time__gte=current_time
+        )
+        manpower, elapsed_seconds, sam, output, target = 0, 0, 0, 0, 0
+        for production_session in active_production_sessions:
+            manpower += production_session.operators + production_session.helpers
+            elapsed_seconds += (current_time - production_session.start_time).total_seconds()
+            duration_seconds = (production_session.end_time - production_session.start_time).total_seconds()
+            res = production_session.qcinput_set \
+                .filter(Q(redacted=False) & Q(input_type="ftt") | Q(input_type="rectified")) \
+                .aggregate(Sum('quantity'))
+            if res['quantity__sum'] != None:
+                output += res['quantity__sum']
+            sam += production_session.style.sam
+            target += production_session.target
+        rtt = target * (elapsed_seconds / duration_seconds)
+        factory_efficiency = output * sam * 100 / (manpower * elapsed_seconds / 60)
+        required_efficiency = rtt * sam * 100 / (manpower * elapsed_seconds / 60)
+        return Response({"target": required_efficiency, "actual": factory_efficiency})
 
     @action(detail=False, url_path="active-operators")
     def active_operators(self, request):
