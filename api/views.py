@@ -69,7 +69,8 @@ class ProductionSessionViewSet(viewsets.ModelViewSet):
         # Rejected should be ignored if the piece came back after being marked defective.
         total_pieces_processed = 0
 
-        for qc_input in production_session.qcinput_set.filter(redacted=False):
+        qc_inputs = production_session.qcinput_set.filter(redacted=False)
+        for qc_input in qc_inputs:
             if qc_input.input_type == "ftt":
                 ftt += qc_input.quantity
             elif qc_input.input_type == "defective":
@@ -220,7 +221,7 @@ class Metric(viewsets.ViewSet):
             start_time__lte=current_time,
             end_time__gte=current_time
         )
-        manpower, elapsed_seconds, sam, output, target = 0, 0, 0, 0, 0
+        manpower, elapsed_seconds, duration_seconds, sam, output, target = 0, 0, 0, 0, 0, 0
         for production_session in active_production_sessions:
             manpower += production_session.operators + production_session.helpers
             elapsed_seconds += (current_time - production_session.start_time).total_seconds()
@@ -232,9 +233,17 @@ class Metric(viewsets.ViewSet):
                 output += res['quantity__sum']
             sam += production_session.style.sam
             target += production_session.target
-        rtt = target * (elapsed_seconds / duration_seconds)
-        factory_efficiency = output * sam * 100 / (manpower * elapsed_seconds / 60)
-        required_efficiency = rtt * sam * 100 / (manpower * elapsed_seconds / 60)
+        
+        required_efficiency, factory_efficiency = 0, 0
+        try:
+            factory_efficiency = output * sam * 100 / (manpower * elapsed_seconds / 60)
+        except ZeroDivisionError:
+            factory_efficiency = 0
+        try:
+            rtt = target * (elapsed_seconds / duration_seconds)
+            required_efficiency = rtt * sam * 100 / (manpower * elapsed_seconds / 60)
+        except ZeroDivisionError:
+            required_efficiency = 0
         return Response({"target": required_efficiency, "actual": factory_efficiency})
 
     @action(detail=False, url_path="active-operators")
@@ -278,3 +287,23 @@ class Metric(viewsets.ViewSet):
         for _, value in helpers_on_line.items():
             helpers += value
         return Response({"data": helpers})
+
+    @action(detail=False, url_path="active-qc-actions")
+    def active_qc_actions(self, request):
+        active_production_sessions = ProductionSession.objects.filter(
+            start_time__lte=timezone.now(),
+            end_time__gte=timezone.now()
+        )
+        ftt, defective, rejected, rectified = 0, 0, 0, 0
+        for prod_session in active_production_sessions:
+            qc_inputs = prod_session.qcinput_set.filter(redacted=False)
+            for qc_input in qc_inputs:
+                if qc_input.input_type == "ftt":
+                    ftt += qc_input.quantity
+                elif qc_input.input_type == "defective":
+                    defective += qc_input.quantity
+                elif qc_input.input_type == "rejected":
+                    rejected += qc_input.quantity
+                elif qc_input.input_type == "rectified":
+                    rectified += qc_input.quantity
+        return Response({"ftt": ftt, "defective": defective, "rectified": rectified, "rejected": rejected})
