@@ -9,6 +9,8 @@ from datetime import timedelta
 from django.db.models import Sum, Count, Q
 from django.db.models.functions import TruncMinute, TruncHour, TruncHour, TruncDate, TruncMonth
 import math
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 
 class ProductionOrderViewSet(viewsets.ModelViewSet):
     queryset = ProductionOrder.objects.all()
@@ -18,7 +20,7 @@ class ProductionOrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=False)
     def active(self, request):
-        active_orders = ProductionOrder.objects.filter(completed=False)
+        active_orders = ProductionOrder.active()
         if len(active_orders) == 0:
             return Response({'error':'No active orders found'}, status=status.HTTP_404_NOT_FOUND)
         serializer = self.get_serializer(active_orders, many=True)
@@ -137,6 +139,16 @@ class QcInputViewSet(viewsets.ModelViewSet):
     queryset = QcInput.objects.all()
     serializer_class = QcInputSerializer
     permission_classes = [permissions.AllowAny]
+
+    def perform_create(self, serializer):
+        super().perform_create(serializer)
+        layer = get_channel_layer()
+        async_to_sync(layer.group_send)(
+            "sse_group",
+            {
+                "type": "send_new_qcinput_update"
+            }
+        )
 
 
 class DefectViewSet(viewsets.ModelViewSet):

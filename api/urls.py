@@ -1,14 +1,14 @@
 from django.urls import path, include
 from rest_framework import routers
-from .views import ProductionOrderViewSet, StyleViewSet, ProductionSessionViewSet, QcInputViewSet, DefectViewSet, Metric
+from . import views
 
 router = routers.DefaultRouter()
-router.register(r'production-order', ProductionOrderViewSet)
-router.register(r'style', StyleViewSet)
-router.register(r'production-session', ProductionSessionViewSet)
-router.register(r'qc-input', QcInputViewSet)
-router.register(r'defect', DefectViewSet)
-router.register(r'metric', Metric, basename="Metric")
+router.register(r'production-order', views.ProductionOrderViewSet)
+router.register(r'style', views.StyleViewSet)
+router.register(r'production-session', views.ProductionSessionViewSet)
+router.register(r'qc-input', views.QcInputViewSet)
+router.register(r'defect', views.DefectViewSet)
+router.register(r'metric', views.Metric, basename="Metric")
 
 urlpatterns = [
     path('', include(router.urls)),

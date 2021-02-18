@@ -10,6 +10,10 @@ class ProductionOrder(models.Model):
 
     def __str__(self):
         return f'{self.buyer} - {self.quantity}'
+    
+    @staticmethod
+    def active():
+        return ProductionOrder.objects.filter(completed=False)
 
 
 class Style(models.Model):
