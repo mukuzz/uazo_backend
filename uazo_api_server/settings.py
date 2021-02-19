@@ -156,12 +156,13 @@ ASGI_APPLICATION = 'uazo_api_server.asgi.application'
 if DEBUG:
     redis_host = ('localhost', 6379)
 else:
-    redis_host = os.environ['REDIS_TLS_URL']
+    redis_host = os.environ['REDIS_URL']
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
             "hosts": [redis_host],
+            "symmetric_encryption_keys": [SECRET_KEY],
         },
     },
 }
