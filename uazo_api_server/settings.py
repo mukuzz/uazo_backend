@@ -153,11 +153,15 @@ REST_FRAMEWORK = {
 
 # Django Channels
 ASGI_APPLICATION = 'uazo_api_server.asgi.application'
+if DEBUG:
+    redis_host = ('localhost', 6379)
+else:
+    redis_host = os.environ['REDIS_TLS_URL']
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [('localhost', 6379)],
+            "hosts": [redis_host],
         },
     },
 }
