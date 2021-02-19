@@ -1,1 +1,1 @@
-web: gunicorn uazo_api_server.wsgi --log-file -
+web: daphne uazo_api_server.asgi:application --access-log -
