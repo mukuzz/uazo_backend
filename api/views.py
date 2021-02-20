@@ -142,6 +142,13 @@ class QcInputViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         super().perform_create(serializer)
+        self.send_channels_message()
+    
+    def perform_update(self, serializer):
+        super().perform_update(serializer)
+        self.send_channels_message()
+    
+    def send_channels_message(self):
         layer = get_channel_layer()
         async_to_sync(layer.group_send)(
             "sse_group",
@@ -158,14 +165,15 @@ class DefectViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, url_path="most-frequent")
     def most_frequent(self, request):
-        defects = Defect.objects.annotate(Count('qcinput')).order_by('-qcinput__count')
+        defects = Defect.objects.filter(qcinput__redacted=False).annotate(Sum('qcinput__quantity')).order_by('-qcinput__quantity__sum')
         data = []
         for defect in defects[:5]:
-            data.append({
-                "operation": defect.operation,
-                "defect": defect.defect,
-                "count": defect.qcinput__count
-            })
+            if defect.qcinput__quantity__sum > 0:
+                data.append({
+                    "operation": defect.operation,
+                    "defect": defect.defect,
+                    "count": defect.qcinput__quantity__sum
+                })
         return Response({"data": data})
 
 
