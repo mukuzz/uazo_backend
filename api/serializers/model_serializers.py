@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from api.models import ProductionOrder, Style, ProductionSession, QcInput, Defect, QC_INPUT_TYPES
+from api.models import ProductionOrder, Style, ProductionSession, QcInput, Defect
 
 class ProductionOrderSerializer(serializers.ModelSerializer):
     class Meta:
@@ -26,7 +26,6 @@ class DefectSerializer(serializers.ModelSerializer):
 
 
 class QcInputSerializer(serializers.ModelSerializer):
-    input_type = serializers.ChoiceField(choices=QC_INPUT_TYPES)
     defect_ids = serializers.PrimaryKeyRelatedField(queryset=Defect.objects.all(), many=True, write_only=True)
     defects = DefectSerializer(many=True, read_only=True)
 

@@ -1,4 +1,4 @@
-from .models import ProductionOrder, Style, ProductionSession, QcInput, Defect
+from api.models import ProductionOrder, Style, ProductionSession, QcInput, DeletedQcInput, Defect
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -21,8 +21,6 @@ class ProductionOrderViewSet(viewsets.ModelViewSet):
     @action(detail=False)
     def active(self, request):
         active_orders = ProductionOrder.active()
-        if len(active_orders) == 0:
-            return Response({'error':'No active orders found'}, status=status.HTTP_404_NOT_FOUND)
         serializer = self.get_serializer(active_orders, many=True)
         return Response(serializer.data)
     
@@ -55,8 +53,6 @@ class ProductionSessionViewSet(viewsets.ModelViewSet):
             start_time__lte=timezone.now(),
             end_time__gte=timezone.now()
         )
-        if len(active_production_sessions) == 0:
-            return Response({'error':'No active sessions found'}, status=status.HTTP_404_NOT_FOUND)
         serializer = self.get_serializer(active_production_sessions, many=True)
         return Response(serializer.data)
     
@@ -71,7 +67,7 @@ class ProductionSessionViewSet(viewsets.ModelViewSet):
         # Rejected should be ignored if the piece came back after being marked defective.
         total_pieces_processed = 0
 
-        qc_inputs = production_session.qcinput_set.filter(redacted=False)
+        qc_inputs = production_session.qcinput_set.filter()
         for qc_input in qc_inputs:
             if qc_input.input_type == "ftt":
                 ftt += qc_input.quantity
@@ -165,7 +161,7 @@ class DefectViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, url_path="most-frequent")
     def most_frequent(self, request):
-        defects = Defect.objects.filter(qcinput__redacted=False).annotate(Sum('qcinput__quantity')).order_by('-qcinput__quantity__sum')
+        defects = Defect.objects.annotate(Sum('qcinput__quantity')).order_by('-qcinput__quantity__sum')
         data = []
         for defect in defects[:5]:
             if defect.qcinput__quantity__sum > 0:
@@ -180,13 +176,17 @@ class DefectViewSet(viewsets.ModelViewSet):
 class Metric(viewsets.ViewSet):
     permission_classes = []
 
+    # This exists just for the metric viewset to show up in the browsable api
+    def list(self, request):
+        return Response()
+
     @action(detail=False, url_path="active-orders")
     def active_orders(self, request):
         active_orders = ProductionOrder.objects.filter(completed=False)
         data = []
         for order in active_orders:
             produced = 0
-            qc_inputs = QcInput.objects.filter(production_session__style__order=order, redacted=False)
+            qc_inputs = QcInput.objects.filter(production_session__style__order=order)
             for qc_input in qc_inputs:
                 if qc_input.input_type == "ftt" or qc_input.input_type == "rectified":
                     produced += qc_input.quantity
@@ -211,7 +211,6 @@ class Metric(viewsets.ViewSet):
         qc_inputs = QcInput.objects.filter(
             datetime__gte=start,
             datetime__lte=end,
-            redacted=False,
         ).order_by('datetime')
 
         labels, data = [], []
@@ -247,7 +246,7 @@ class Metric(viewsets.ViewSet):
             elapsed_seconds += (current_time - production_session.start_time).total_seconds()
             duration_seconds = (production_session.end_time - production_session.start_time).total_seconds()
             res = production_session.qcinput_set \
-                .filter(Q(redacted=False) & Q(input_type="ftt") | Q(input_type="rectified")) \
+                .filter(Q(input_type="ftt") | Q(input_type="rectified")) \
                 .aggregate(Sum('quantity'))
             if res['quantity__sum'] != None:
                 output += res['quantity__sum']
@@ -316,7 +315,7 @@ class Metric(viewsets.ViewSet):
         )
         ftt, defective, rejected, rectified = 0, 0, 0, 0
         for prod_session in active_production_sessions:
-            qc_inputs = prod_session.qcinput_set.filter(redacted=False)
+            qc_inputs = prod_session.qcinput_set.filter()
             for qc_input in qc_inputs:
                 if qc_input.input_type == "ftt":
                     ftt += qc_input.quantity

@@ -8,7 +8,7 @@ router.register(r'style', views.StyleViewSet)
 router.register(r'production-session', views.ProductionSessionViewSet)
 router.register(r'qc-input', views.QcInputViewSet)
 router.register(r'defect', views.DefectViewSet)
-router.register(r'metric', views.Metric, basename="Metric")
+router.register(r'metric', views.Metric, basename="metric")
 
 urlpatterns = [
     path('', include(router.urls)),
