@@ -23,6 +23,7 @@ class QcInputTemplate(models.Model):
 
     class Meta:
         abstract = True
+        permissions = [('can_receive_new_qc_input_notification','Can receive notifications for new QC inputs')]
 
     def __str__(self):
         return f'{self.size} - {self.quantity} - {self.production_session.style}'

@@ -1,6 +1,8 @@
 from channels.generic.http import AsyncHttpConsumer
 from channels.exceptions import StopConsumer
 from datetime import datetime
+from django.contrib.auth.models import AnonymousUser
+from asgiref.sync import sync_to_async
 
 
 class AsyncHttpSseConsumer(AsyncHttpConsumer):
@@ -59,6 +61,10 @@ class SseConsumer(AsyncHttpSseConsumer):
 		# called the first time.
 		await self.send_body("".encode("utf-8"), more_body=True)
 
+		# Authentication
+		await self.check_authentication()
+		
+
 	async def disconnect(self):
 		await self.channel_layer.group_discard(
 			self.room_group_name,
@@ -66,6 +72,15 @@ class SseConsumer(AsyncHttpSseConsumer):
 		)
   
 	async def send_new_qcinput_update(self, event):
-		payload = "event: newQcInput\n"
-		payload += "data: \n\n"
-		await self.send_body(payload.encode("utf-8"), more_body=True)
+		if await self.check_authentication() == True:
+			payload = "event: newQcInput\n"
+			payload += "data: \n\n"
+			await self.send_body(payload.encode("utf-8"), more_body=True)
+	
+	async def check_authentication(self):
+		if self.scope['user'] == AnonymousUser() or \
+			await sync_to_async(self.scope['user'].has_perm)('api.can_receive_new_qc_input_notification') == False:
+			payload = "retry: 86400\n\n"
+			await self.send_body(payload.encode("utf-8"), more_body=False)
+			return False
+		return True

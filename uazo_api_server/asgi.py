@@ -13,6 +13,7 @@ from django.urls import re_path
 from channels.routing import ProtocolTypeRouter, URLRouter
 
 from sse import routing
+from sse.authentication import TokenAuthMiddleware
 
 # Fetch Django ASGI application early to ensure AppRegistry is populated
 # before importing consumers and AuthMiddlewareStack that may import ORM
@@ -23,8 +24,8 @@ django_asgi_app = get_asgi_application()
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'uazo_api_server.settings')
 
 application = ProtocolTypeRouter({
-	"http": URLRouter([
+	"http": TokenAuthMiddleware(URLRouter([
 		re_path(r'^sse/event/$', routing.urlpatterns),
 		re_path(r'^.*$', django_asgi_app)
-	])
+	]))
 })

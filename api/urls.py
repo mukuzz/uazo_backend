@@ -1,5 +1,6 @@
 from django.urls import path, include
 from rest_framework import routers
+from rest_framework.authtoken import views as drf_auth_views
 from . import views
 
 router = routers.DefaultRouter()
@@ -12,5 +13,5 @@ router.register(r'metric', views.Metric, basename="metric")
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('auth/', include('rest_framework.urls'))
+    path('auth/', drf_auth_views.obtain_auth_token),
 ]

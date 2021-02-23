@@ -1,5 +1,5 @@
 from api.models import ProductionOrder, Style, ProductionSession, QcInput, DeletedQcInput, Defect
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from api.serializers.model_serializers import *
@@ -15,8 +15,6 @@ from channels.layers import get_channel_layer
 class ProductionOrderViewSet(viewsets.ModelViewSet):
     queryset = ProductionOrder.objects.all()
     serializer_class = ProductionOrderSerializer
-    # permission_classes = [permissions.IsAuthenticated]
-    permission_classes = [permissions.AllowAny]
 
     @action(detail=False)
     def active(self, request):
@@ -39,13 +37,11 @@ class ProductionOrderViewSet(viewsets.ModelViewSet):
 class StyleViewSet(viewsets.ModelViewSet):
     queryset = Style.objects.all()
     serializer_class = StyleSerializer
-    permission_classes = [permissions.AllowAny]
 
 
 class ProductionSessionViewSet(viewsets.ModelViewSet):
     queryset = ProductionSession.objects.all()
     serializer_class = ProductionSessionSerializer
-    permission_classes = [permissions.AllowAny]
     
     @action(detail=False)
     def active(self, request):
@@ -134,7 +130,6 @@ class ProductionSessionViewSet(viewsets.ModelViewSet):
 class QcInputViewSet(viewsets.ModelViewSet):
     queryset = QcInput.objects.all()
     serializer_class = QcInputSerializer
-    permission_classes = [permissions.AllowAny]
 
     def perform_create(self, serializer):
         super().perform_create(serializer)
@@ -157,7 +152,6 @@ class QcInputViewSet(viewsets.ModelViewSet):
 class DefectViewSet(viewsets.ModelViewSet):
     queryset = Defect.objects.all()
     serializer_class = DefectSerializer
-    permission_classes = [permissions.AllowAny]
 
     @action(detail=False, url_path="most-frequent")
     def most_frequent(self, request):
@@ -174,7 +168,6 @@ class DefectViewSet(viewsets.ModelViewSet):
 
 
 class Metric(viewsets.ViewSet):
-    permission_classes = []
 
     # This exists just for the metric viewset to show up in the browsable api
     def list(self, request):
