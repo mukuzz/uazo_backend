@@ -13,5 +13,5 @@ router.register(r'metric', views.Metric, basename="metric")
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('auth/', drf_auth_views.obtain_auth_token),
+    path('login/', drf_auth_views.obtain_auth_token),
 ]
