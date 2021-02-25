@@ -79,7 +79,7 @@ class SseConsumer(AsyncHttpSseConsumer):
 	
 	async def check_authentication(self):
 		if self.scope['user'] == AnonymousUser() or \
-			await sync_to_async(self.scope['user'].has_perm)('api.can_receive_new_qc_input_notification') == False:
+			await sync_to_async(self.scope['user'].has_perm)('mes.can_receive_new_qc_input_notification') == False:
 			payload = "retry: 86400\n\n"
 			await self.send_body(payload.encode("utf-8"), more_body=False)
 			return False

@@ -1,1 +1,1 @@
-web: daphne -b 0.0.0.0 -p $PORT uazo_api_server.asgi:application --access-log -
+web: daphne -b 0.0.0.0 -p $PORT uazo.asgi:application --access-log -
