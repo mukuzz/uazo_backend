@@ -184,7 +184,7 @@ class Metric(viewsets.ViewSet):
             for qc_input in qc_inputs:
                 if qc_input.input_type == "ftt" or qc_input.input_type == "rectified":
                     produced += qc_input.quantity
-            data.append({"buyer": order.buyer, "produced": produced, "target": order.quantity})
+            data.append({"buyer": order.buyer, "produced": produced, "target": order.quantity()})
         return Response({"data": data})
 
     @action(detail=False, url_path="output-timeseries")
@@ -224,7 +224,7 @@ class Metric(viewsets.ViewSet):
         )
         active_lines = set()
         for session in active_production_sessions:
-            active_lines.add(session.line_number)
+            active_lines.add(session.line)
         return Response({"data": len(active_lines)})
 
     @action(detail=False, url_path="factory-efficiency")
@@ -270,11 +270,11 @@ class Metric(viewsets.ViewSet):
         operators_on_line = {}
         for session in active_production_sessions:
             try:
-                operators_on_line[session.line_number]
+                operators_on_line[str(session.line)]
             except KeyError:
-                operators_on_line[session.line_number] = 0
-            operators_on_line[session.line_number] = \
-                max(operators_on_line[session.line_number], session.operators)
+                operators_on_line[str(session.line)] = 0
+            operators_on_line[str(session.line)] = \
+                max(operators_on_line[str(session.line)], session.operators)
         operators = 0
         for _, value in operators_on_line.items():
             operators += value
@@ -291,11 +291,11 @@ class Metric(viewsets.ViewSet):
         helpers_on_line = {}
         for session in active_production_sessions:
             try:
-                helpers_on_line[session.line_number]
+                helpers_on_line[str(session.line)]
             except KeyError:
-                helpers_on_line[session.line_number] = 0
-            helpers_on_line[session.line_number] = \
-                max(helpers_on_line[session.line_number], session.helpers)
+                helpers_on_line[str(session.line)] = 0
+            helpers_on_line[str(session.line)] = \
+                max(helpers_on_line[str(session.line)], session.helpers)
         helpers = 0
         for _, value in helpers_on_line.items():
             helpers += value

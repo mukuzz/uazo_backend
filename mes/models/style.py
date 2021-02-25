@@ -1,5 +1,6 @@
 from django.db import models
 from .prod_order import ProductionOrder
+from .defect import Defect
 
 
 class Style(models.Model):
@@ -8,6 +9,7 @@ class Style(models.Model):
     color = models.CharField(max_length=256)
     name = models.CharField(max_length=256)
     sam = models.FloatField()
+    defects = models.ManyToManyField(Defect)
     order = models.ForeignKey(ProductionOrder, on_delete=models.CASCADE)
 
     def __str__(self):

@@ -4,21 +4,22 @@ from django.db.models.signals import pre_delete
 from django.dispatch import receiver
 from .prod_session import ProductionSession
 from .defect import Defect
+from .style import SizeQuantity
 
 
 class QcInputTemplate(models.Model):
     QC_INPUT_TYPES = (
-        ('ftt', 'ftt'),
-        ('rejected', 'rejected'),
+        ('ftt', 'pass'),
+        ('rejected', 'alter'),
         ('rectified','rectified'),
         ('defective', 'defective')
     )
     datetime = models.DateTimeField(default=timezone.now)
     ftt = models.BooleanField(default=True)
     input_type = models.CharField(max_length=56, choices=QC_INPUT_TYPES)
-    size = models.CharField(max_length=16)
+    size = models.ForeignKey(SizeQuantity, on_delete=models.DO_NOTHING)
     quantity = models.IntegerField(default=1)
-    defects = models.ManyToManyField(Defect)
+    defects = models.ManyToManyField(Defect, blank=True)
     production_session = models.ForeignKey(ProductionSession, on_delete=models.CASCADE)
 
     class Meta:
