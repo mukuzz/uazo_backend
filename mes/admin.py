@@ -85,11 +85,11 @@ admin.site.register(DeletedQcInput, DeletedQcInputAdmin)
 
 
 class DefectAdmin(admin.ModelAdmin):
-    list_display = ['operation', 'defect']
+    list_display = ['defect', 'operation']
     save_as = True
     save_as_continue = False
-    search_fields = ['operation', 'defect']
-    list_filter = ['operation', 'defect']
+    search_fields = ['defect', 'operation']
+    list_filter = ['defect', 'operation']
 
 admin.site.register(Defect, DefectAdmin)
 

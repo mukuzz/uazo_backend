@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from mes.models import ProductionOrder, Style, ProductionSession, QcInput, Defect
+from mes.models import ProductionOrder, Style, ProductionSession, QcInput, Defect, SizeQuantity, Line
 
 class ProductionOrderSerializer(serializers.ModelSerializer):
     class Meta:
@@ -7,13 +7,28 @@ class ProductionOrderSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class SizeQuantitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SizeQuantity
+        fields = ['id', 'size', 'quantity']
+
+
 class StyleSerializer(serializers.ModelSerializer):
+    size_quantities = SizeQuantitySerializer(source='sizequantity_set',many=True, read_only=True)
+
     class Meta:
         model = Style
         fields = '__all__'
 
 
+class LineSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Line
+        fields = '__all__'
+
+
 class ProductionSessionSerializer(serializers.ModelSerializer):
+    line = LineSerializer()
     class Meta:
         model = ProductionSession
         fields = '__all__'

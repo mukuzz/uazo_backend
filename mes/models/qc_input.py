@@ -2,6 +2,7 @@ from django.db import models
 from django.utils import timezone
 from django.db.models.signals import pre_delete 
 from django.dispatch import receiver
+from django.conf import settings
 from .prod_session import ProductionSession
 from .defect import Defect
 from .style import SizeQuantity
@@ -21,6 +22,7 @@ class QcInputTemplate(models.Model):
     quantity = models.IntegerField(default=1)
     defects = models.ManyToManyField(Defect, blank=True)
     production_session = models.ForeignKey(ProductionSession, on_delete=models.CASCADE)
+    creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.DO_NOTHING)
 
     class Meta:
         abstract = True
@@ -45,6 +47,7 @@ def migrate_qc_input(sender, instance, **kwargs):
         size=instance.size,
         quantity=instance.quantity,
         production_session=instance.production_session,
+        creator=instance.creator,
         deletion_datetime=timezone.now()
     )
     if instance.input_type == 'defective':
