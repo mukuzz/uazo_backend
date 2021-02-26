@@ -19,6 +19,7 @@ class TokenAuthMiddleware:
         self.app = app
 
     async def __call__(self, scope, receive, send):
+        # TODO: Authentication
         headers = dict(scope['headers'])
         scope['user'] = AnonymousUser()
         if b'authorization' in headers:
@@ -27,5 +28,4 @@ class TokenAuthMiddleware:
                 token_name, token_key = auth_string.split(" ", 1)
                 if token_name == 'Token':
                     scope['user'] = await get_user(token_key)
-        print(scope['user'])
         return await self.app(scope, receive, send)
