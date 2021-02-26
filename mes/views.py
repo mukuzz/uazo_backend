@@ -6,11 +6,10 @@ from mes.serializers.model_serializers import *
 from mes.serializers.query_serializers import TimeSeriesRequestQuerySerializer
 from django.utils import timezone
 from datetime import timedelta
+import datetime
 from django.db.models import Sum, Count, Q
 from django.db.models.functions import TruncMinute, TruncHour, TruncHour, TruncDate, TruncMonth
 import math
-from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
 
 class ProductionOrderViewSet(viewsets.ModelViewSet):
     queryset = ProductionOrder.objects.all()
@@ -125,28 +124,95 @@ class ProductionSessionViewSet(viewsets.ModelViewSet):
         if ftt != 0:
             stats["dhu"] = defects * 100 / total_pieces_processed
         return Response(stats)
+    
+    @action(detail=True, url_path="hourly-stats")
+    def hourly_stats(self, request, pk=None):
+        production_session = self.get_object()
+        style = production_session.style
+
+        number_of_hours = 8
+        response_data = []
+
+        for hour in range(number_of_hours):
+
+            ftt, defective, rejected, rectified, defects = 0, 0, 0, 0, 0
+
+            # To avoid double counting while calculating total_pieces_processed
+            # Rectified should always be ignored.
+            # Rejected should be ignored if the piece came back after being marked defective.
+            total_pieces_processed = 0
+
+            time_filter_start = datetime.datetime(2021, 2, 26, 9+hour)
+            time_filter_end = time_filter_start + timedelta(hours=1)
+            qc_inputs = production_session.qcinput_set.filter(datetime__gte=time_filter_start, datetime__lt=time_filter_end)
+            for qc_input in qc_inputs:
+                if qc_input.input_type == "ftt":
+                    ftt += qc_input.quantity
+                elif qc_input.input_type == "defective":
+                    defective += qc_input.quantity
+                    defects += len(qc_input.defects.all()) 
+                elif qc_input.input_type == "rejected":
+                    rejected += qc_input.quantity
+                    if qc_input.ftt:
+                        total_pieces_processed += qc_input.quantity
+                elif qc_input.input_type == "rectified":
+                    rectified += qc_input.quantity
+            
+            total_pieces_processed += ftt + defective
+
+            target = production_session.target
+            output = ftt + rectified
+            stats = {
+                "hour": hour + 1,
+                "target": int(target / number_of_hours),
+                "output": output,   
+                "buyer": style.order.buyer,
+                "style_number": style.number,
+                "style_name": style.name,
+                "defective": defective,
+                "rejected": rejected,
+                "rectified": rectified,
+            }
+            
+            shift_start = time_filter_start
+            shift_end = time_filter_end
+            # stats["shift"] = f'{timezone.localtime(shift_start).hour} to {timezone.localtime(shift_end).hour}'
+
+            if output > 0:
+                # Calculate Line efficiency
+                manpower = production_session.operators + production_session.helpers
+                shift_mins_elapsed = (shift_end - shift_start).total_seconds() / 60
+                stats["line_efficiency"] = output * style.sam * 100 / (manpower * shift_mins_elapsed)
+            
+                # Calculate RTT
+                shift_duration_seconds = (shift_end - shift_start).total_seconds()
+                shift_elapsed_seconds = (shift_end - shift_start).total_seconds()
+                rtt = target * (shift_elapsed_seconds / shift_duration_seconds)
+                stats["rtt"] = math.ceil(rtt)
+
+                # Calculate Variance
+                stats["variance"] = math.ceil(target - rtt)
+
+                # Calculate Projected Output
+                production_rate = output / shift_elapsed_seconds
+                shift_remaining_seconds = (shift_end - datetime.datetime.now()).total_seconds()
+                stats["projected_output"] = round(output + production_rate * shift_remaining_seconds)
+
+            if ftt != 0:
+                stats["ftt_rate"] = ftt * 100 / total_pieces_processed
+            if rejected != 0:
+                stats["reject_rate"] = rejected * 100 / total_pieces_processed
+            if ftt != 0:
+                stats["defective_rate"] = defective * 100 / total_pieces_processed
+            if ftt != 0:
+                stats["dhu"] = defects * 100 / total_pieces_processed
+            response_data.append(stats)
+        return Response(response_data)
 
 
 class QcInputViewSet(viewsets.ModelViewSet):
     queryset = QcInput.objects.all()
     serializer_class = QcInputSerializer
-
-    def perform_create(self, serializer):
-        super().perform_create(serializer)
-        self.send_channels_message()
-    
-    def perform_update(self, serializer):
-        super().perform_update(serializer)
-        self.send_channels_message()
-    
-    def send_channels_message(self):
-        layer = get_channel_layer()
-        async_to_sync(layer.group_send)(
-            "sse_group",
-            {
-                "type": "send_new_qcinput_update"
-            }
-        )
 
 
 class DefectViewSet(viewsets.ModelViewSet):
@@ -210,9 +276,10 @@ class Metric(viewsets.ViewSet):
         labels, data = [], []
         output = 0
         for qc_input in qc_inputs:
-            output += qc_input.quantity
-            labels.append(timezone.localtime(qc_input.datetime))
-            data.append(output)
+            if qc_input.input_type == "ftt" or qc_input.input_type == "rectified":
+                output += qc_input.quantity
+                labels.append(timezone.localtime(qc_input.datetime))
+                data.append(output)
         return Response({"labels":labels, "data": data})
 
     

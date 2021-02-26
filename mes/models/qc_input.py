@@ -1,6 +1,6 @@
 from django.db import models
 from django.utils import timezone
-from django.db.models.signals import pre_delete 
+from django.db.models.signals import pre_delete, post_save, post_delete
 from django.dispatch import receiver
 from django.conf import settings
 from .prod_session import ProductionSession
@@ -55,3 +55,19 @@ def migrate_qc_input(sender, instance, **kwargs):
             delted_qc_input.defects.add(defect.pk)
 
 pre_delete.connect(migrate_qc_input, QcInput)
+
+
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+
+def send_channels_message(sender, instance, **kwargs):
+    layer = get_channel_layer()
+    async_to_sync(layer.group_send)(
+        "sse_group",
+        {
+            "type": "send_new_qcinput_update"
+        }
+    )
+
+post_delete.connect(send_channels_message, QcInput)
+post_save.connect(send_channels_message, QcInput)
