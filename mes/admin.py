@@ -1,6 +1,6 @@
 from django.contrib import admin
 import nested_admin
-from mes.models import ProductionOrder, Style, ProductionSession, QcInput, DeletedQcInput, Defect, SizeQuantity, Line
+from mes.models import ProductionOrder, Style, ProductionSession, QcInput, DeletedQcInput, Defect, SizeQuantity, Line, LineLocation, Buyer
 
 admin.site.site_header = "Uazo"
 admin.site.site_title = "Uazo"
@@ -47,8 +47,8 @@ class ProductionOrderAdmin(nested_admin.NestedModelAdmin):
     inlines = [StyleNestedInline]
     date_hierarchy = 'due_date_time'
     list_display = ['buyer', 'quantity', 'receive_date_time', 'due_date_time', 'completed']
-    list_filter = ['buyer', 'receive_date_time', 'due_date_time', 'completed']
-    search_fields = ['buyer']
+    list_filter = ['buyer__buyer', 'receive_date_time', 'due_date_time', 'completed']
+    search_fields = ['buyer__buyer']
     save_as = True
     save_as_continue = False
 
@@ -98,6 +98,18 @@ class LineAdmin(admin.ModelAdmin):
     list_display = ['number', 'location']
     save_as = True
     save_as_continue = False
-    list_filter = ['location']
+    list_filter = ['location__location']
 
 admin.site.register(Line, LineAdmin)
+
+
+class BuyerAdmin(admin.ModelAdmin):
+    list_display = ['buyer']
+
+admin.site.register(Buyer, BuyerAdmin)
+
+
+class LineLocationAdmin(admin.ModelAdmin):
+    list_display = ['location']
+
+admin.site.register(LineLocation, LineLocationAdmin)

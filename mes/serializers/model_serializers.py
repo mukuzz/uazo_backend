@@ -1,7 +1,14 @@
 from rest_framework import serializers
-from mes.models import ProductionOrder, Style, ProductionSession, QcInput, Defect, SizeQuantity, Line
+from mes.models import ProductionOrder, Style, ProductionSession, QcInput, Defect, SizeQuantity, Line, Buyer
+
+
+class BuyerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Buyer
+        fields = '__all__'
 
 class ProductionOrderSerializer(serializers.ModelSerializer):
+    buyer = BuyerSerializer()
     class Meta:
         model = ProductionOrder
         fields = '__all__'

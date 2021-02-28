@@ -4,7 +4,7 @@ from django.db.models import Sum
 
 
 class ProductionOrder(models.Model):
-    buyer = models.CharField(max_length=256)
+    buyer = models.ForeignKey('mes.Buyer', on_delete=models.CASCADE)
     quantity = models.IntegerField()
     receive_date_time = models.DateTimeField(default=timezone.now)
     due_date_time = models.DateTimeField()
@@ -23,3 +23,17 @@ class ProductionOrder(models.Model):
             for sizequantity in style.sizequantity_set.all():
                 quantity += sizequantity.quantity
         return quantity
+    
+    def progress(self):
+        """
+        Returns the quantity of units produced for the production order
+        """
+        from .qc_input import QcInput
+        
+        qc_inputs = QcInput.objects\
+            .filter(production_session__style__order=order)\
+            .filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))
+        produced = 0
+        for qc_input in qc_inputs:
+            produced += qc_input.quantity
+        return produced

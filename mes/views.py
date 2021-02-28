@@ -3,13 +3,26 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from mes.serializers.model_serializers import *
-from mes.serializers.query_serializers import TimeSeriesRequestQuerySerializer
+from mes.serializers.query_serializers import TimeSeriesRequestQuerySerializer, DetailFilterQuerySerializer
 from django.utils import timezone
 from datetime import timedelta
 import datetime
 from django.db.models import Sum, Count, Q
 from django.db.models.functions import TruncMinute, TruncHour, TruncHour, TruncDate, TruncMonth
 import math
+from . import utils
+
+# DAY_START_HOUR = 8
+# DAY_WORK_HOURS = 8
+# BREAK_START_HOUR = 13
+# BREAK_START_MINUTE = 30
+# BREAK_MINUTES = 30
+
+DAY_START_HOUR = 0
+DAY_WORK_HOURS = 8
+BREAK_START_HOUR = 5
+BREAK_START_MINUTE = 30
+BREAK_MINUTES = 30
 
 class ProductionOrderViewSet(viewsets.ModelViewSet):
     queryset = ProductionOrder.objects.all()
@@ -23,14 +36,7 @@ class ProductionOrderViewSet(viewsets.ModelViewSet):
     
     @action(detail=True)
     def progress(self, request, pk=None):
-        order = self.get_object()
-        qc_inputs = QcInput.objects.filter(production_session__style__order=order)
-        produced = 0
-        for qc_input in qc_inputs:
-            if qc_input.input_type == "ftt" or qc_input.input_type == "rectified":
-                produced += qc_input.quantity
-        status = {"produced": produced}
-        return Response(status)
+        return Response({"produced": self.get_object().order.progress()})
 
 
 class StyleViewSet(viewsets.ModelViewSet):
@@ -44,170 +50,10 @@ class ProductionSessionViewSet(viewsets.ModelViewSet):
     
     @action(detail=False)
     def active(self, request):
-        active_production_sessions = ProductionSession.objects.filter(
-            start_time__lte=timezone.now(),
-            end_time__gte=timezone.now()
-        )
+        # TODO: Return Sessions only which the user is authorized to
+        active_production_sessions = ProductionSession.get_active()
         serializer = self.get_serializer(active_production_sessions, many=True)
         return Response(serializer.data)
-    
-    @action(detail=True)
-    def stats(self, request, pk=None):
-        production_session = self.get_object()
-        style = production_session.style
-        ftt, defective, rejected, rectified, defects = 0, 0, 0, 0, 0
-
-        # To avoid double counting while calculating total_pieces_processed
-        # Rectified should always be ignored.
-        # Rejected should be ignored if the piece came back after being marked defective.
-        total_pieces_processed = 0
-
-        qc_inputs = production_session.qcinput_set.filter()
-        for qc_input in qc_inputs:
-            if qc_input.input_type == "ftt":
-                ftt += qc_input.quantity
-            elif qc_input.input_type == "defective":
-                defective += qc_input.quantity
-                defects += len(qc_input.defects.all()) 
-            elif qc_input.input_type == "rejected":
-                rejected += qc_input.quantity
-                if qc_input.ftt:
-                    total_pieces_processed += qc_input.quantity
-            elif qc_input.input_type == "rectified":
-                rectified += qc_input.quantity
-        
-        total_pieces_processed += ftt + defective
-
-        target = production_session.target
-        output = ftt + rectified
-        stats = {
-            "target": target,
-            "output": output,   
-            "buyer": style.order.buyer,
-            "style_number": style.number,
-            "style_name": style.name,
-            "defective": defective,
-            "rejected": rejected,
-            "rectified": rectified,
-        }
-        
-        shift_start = production_session.start_time
-        shift_end = production_session.end_time
-        stats["shift"] = f'{timezone.localtime(shift_start).hour} to {timezone.localtime(shift_end).hour}'
-
-        if output > 0 and timezone.now() >= shift_start and timezone.now() <= shift_end:
-            # Calculate Line efficiency
-            manpower = production_session.operators + production_session.helpers
-            shift_mins_elapsed = (timezone.now() - shift_start).total_seconds() / 60
-            stats["line_efficiency"] = output * style.sam * 100 / (manpower * shift_mins_elapsed)
-        
-            # Calculate RTT
-            shift_duration_seconds = (shift_end - shift_start).total_seconds()
-            shift_elapsed_seconds = (timezone.now() - shift_start).total_seconds()
-            rtt = target * (shift_elapsed_seconds / shift_duration_seconds)
-            stats["rtt"] = math.ceil(rtt)
-
-            # Calculate Variance
-            stats["variance"] = math.ceil(target - rtt)
-
-            # Calculate Projected Output
-            production_rate = output / shift_elapsed_seconds
-            shift_remaining_seconds = (shift_end - timezone.now()).total_seconds()
-            stats["projected_output"] = round(output + production_rate * shift_remaining_seconds)
-
-        if ftt != 0:
-            stats["ftt_rate"] = ftt * 100 / total_pieces_processed
-        if rejected != 0:
-            stats["reject_rate"] = rejected * 100 / total_pieces_processed
-        if ftt != 0:
-            stats["defective_rate"] = defective * 100 / total_pieces_processed
-        if ftt != 0:
-            stats["dhu"] = defects * 100 / total_pieces_processed
-        return Response(stats)
-    
-    @action(detail=True, url_path="hourly-stats")
-    def hourly_stats(self, request, pk=None):
-        production_session = self.get_object()
-        style = production_session.style
-
-        number_of_hours = 8
-        response_data = []
-
-        for hour in range(number_of_hours):
-
-            ftt, defective, rejected, rectified, defects = 0, 0, 0, 0, 0
-
-            # To avoid double counting while calculating total_pieces_processed
-            # Rectified should always be ignored.
-            # Rejected should be ignored if the piece came back after being marked defective.
-            total_pieces_processed = 0
-
-            time_filter_start = datetime.datetime(2021, 2, 26, 9+hour)
-            time_filter_end = time_filter_start + timedelta(hours=1)
-            qc_inputs = production_session.qcinput_set.filter(datetime__gte=time_filter_start, datetime__lt=time_filter_end)
-            for qc_input in qc_inputs:
-                if qc_input.input_type == "ftt":
-                    ftt += qc_input.quantity
-                elif qc_input.input_type == "defective":
-                    defective += qc_input.quantity
-                    defects += len(qc_input.defects.all()) 
-                elif qc_input.input_type == "rejected":
-                    rejected += qc_input.quantity
-                    if qc_input.ftt:
-                        total_pieces_processed += qc_input.quantity
-                elif qc_input.input_type == "rectified":
-                    rectified += qc_input.quantity
-            
-            total_pieces_processed += ftt + defective
-
-            target = production_session.target
-            output = ftt + rectified
-            stats = {
-                "hour": hour + 1,
-                "target": int(target / number_of_hours),
-                "output": output,   
-                "buyer": style.order.buyer,
-                "style_number": style.number,
-                "style_name": style.name,
-                "defective": defective,
-                "rejected": rejected,
-                "rectified": rectified,
-            }
-            
-            shift_start = time_filter_start
-            shift_end = time_filter_end
-            # stats["shift"] = f'{timezone.localtime(shift_start).hour} to {timezone.localtime(shift_end).hour}'
-
-            if output > 0:
-                # Calculate Line efficiency
-                manpower = production_session.operators + production_session.helpers
-                shift_mins_elapsed = (shift_end - shift_start).total_seconds() / 60
-                stats["line_efficiency"] = output * style.sam * 100 / (manpower * shift_mins_elapsed)
-            
-                # Calculate RTT
-                shift_duration_seconds = (shift_end - shift_start).total_seconds()
-                shift_elapsed_seconds = (shift_end - shift_start).total_seconds()
-                rtt = target * (shift_elapsed_seconds / shift_duration_seconds)
-                stats["rtt"] = math.ceil(rtt)
-
-                # Calculate Variance
-                stats["variance"] = math.ceil(target - rtt)
-
-                # Calculate Projected Output
-                production_rate = output / shift_elapsed_seconds
-                shift_remaining_seconds = (shift_end - datetime.datetime.now()).total_seconds()
-                stats["projected_output"] = round(output + production_rate * shift_remaining_seconds)
-
-            if ftt != 0:
-                stats["ftt_rate"] = ftt * 100 / total_pieces_processed
-            if rejected != 0:
-                stats["reject_rate"] = rejected * 100 / total_pieces_processed
-            if ftt != 0:
-                stats["defective_rate"] = defective * 100 / total_pieces_processed
-            if ftt != 0:
-                stats["dhu"] = defects * 100 / total_pieces_processed
-            response_data.append(stats)
-        return Response(response_data)
 
 
 class QcInputViewSet(viewsets.ModelViewSet):
@@ -221,36 +67,33 @@ class DefectViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, url_path="most-frequent")
     def most_frequent(self, request):
-        defects = Defect.objects.annotate(Sum('qcinput__quantity')).order_by('-qcinput__quantity__sum')
+        defects = Defect.objects.annotate(defect_freq=Sum('qcinput__quantity')).order_by('-defect_freq')[:5]
         data = []
         for defect in defects[:5]:
-            if defect.qcinput__quantity__sum != None:
-                if defect.qcinput__quantity__sum > 0:
+            if defect.defect_freq != None:
+                if defect.defect_freq > 0:
                     data.append({
                         "operation": defect.operation,
                         "defect": defect.defect,
-                        "count": defect.qcinput__quantity__sum
+                        "freq": defect.defect_freq
                     })
         return Response({"data": data})
 
 
 class Metric(viewsets.ViewSet):
 
-    # This exists just for the metric viewset to show up in the browsable mes
-    def list(self, request):
-        return Response()
-
-    @action(detail=False, url_path="active-orders")
-    def active_orders(self, request):
+    @action(detail=False, url_path="active-orders-status")
+    def active_orders_status(self, request):
         active_orders = ProductionOrder.objects.filter(completed=False)
         data = []
         for order in active_orders:
             produced = 0
-            qc_inputs = QcInput.objects.filter(production_session__style__order=order)
+            qc_inputs = QcInput.objects\
+                .filter(production_session__style__order=order)\
+                .filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))
             for qc_input in qc_inputs:
-                if qc_input.input_type == "ftt" or qc_input.input_type == "rectified":
-                    produced += qc_input.quantity
-            data.append({"buyer": order.buyer, "produced": produced, "target": order.quantity()})
+                produced += qc_input.quantity
+            data.append({"buyer": order.buyer.buyer, "produced": produced, "target": order.quantity()})
         return Response({"data": data})
 
     @action(detail=False, url_path="output-timeseries")
@@ -267,47 +110,50 @@ class Metric(viewsets.ViewSet):
 
         if end - start > timedelta(days=90):
             raise serializers.ValidationError({"date range should be less than or equal to 90 days"})
-        
-        qc_inputs = QcInput.objects.filter(
-            datetime__gte=start,
-            datetime__lte=end,
-        ).order_by('datetime')
 
         labels, data = [], []
         output = 0
+
+        qc_inputs = QcInput.objects\
+            .filter(datetime__lte=start)\
+            .filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))
         for qc_input in qc_inputs:
-            if qc_input.input_type == "ftt" or qc_input.input_type == "rectified":
-                output += qc_input.quantity
-                labels.append(timezone.localtime(qc_input.datetime))
-                data.append(output)
+            output += qc_input.quantity
+        if output > 0:
+            labels.append(timezone.localtime(start))
+            data.append(output)
+        
+        qc_inputs = QcInput.objects\
+            .filter(datetime__gt=start,datetime__lte=end)\
+            .filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))\
+            .order_by('datetime')
+
+        for qc_input in qc_inputs:
+            output += qc_input.quantity
+            labels.append(timezone.localtime(qc_input.datetime))
+            data.append(output)
         return Response({"labels":labels, "data": data})
 
     
     @action(detail=False, url_path="active-lines")
     def active_lines(self, request):
-        active_production_sessions = ProductionSession.objects.filter(
-            start_time__lte=timezone.now(),
-            end_time__gte=timezone.now()
-        )
+        active_production_sessions = ProductionSession.get_active()
         active_lines = set()
         for session in active_production_sessions:
             active_lines.add(session.line)
-        return Response({"data": len(active_lines)})
+        return Response({"data": [LineSerializer(line).data for line in active_lines]})
 
     @action(detail=False, url_path="factory-efficiency")
     def factory_efficiency(self, request):
         current_time = timezone.now()
-        active_production_sessions = ProductionSession.objects.filter(
-            start_time__lte=current_time,
-            end_time__gte=current_time
-        )
+        active_production_sessions = ProductionSession.get_active()
         manpower, elapsed_seconds, duration_seconds, sam, output, target = 0, 0, 0, 0, 0, 0
         for production_session in active_production_sessions:
             manpower += production_session.operators + production_session.helpers
             elapsed_seconds += (current_time - production_session.start_time).total_seconds()
             duration_seconds = (production_session.end_time - production_session.start_time).total_seconds()
             res = production_session.qcinput_set \
-                .filter(Q(input_type="ftt") | Q(input_type="rectified")) \
+                .filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED)) \
                 .aggregate(Sum('quantity'))
             if res['quantity__sum'] != None:
                 output += res['quantity__sum']
@@ -328,10 +174,7 @@ class Metric(viewsets.ViewSet):
 
     @action(detail=False, url_path="active-operators")
     def active_operators(self, request):
-        active_production_sessions = ProductionSession.objects.filter(
-            start_time__lte=timezone.now(),
-            end_time__gte=timezone.now()
-        )
+        active_production_sessions = ProductionSession.get_active()
         if len(active_production_sessions) == 0:
             return Response({"data": 0})
         operators_on_line = {}
@@ -349,10 +192,7 @@ class Metric(viewsets.ViewSet):
         
     @action(detail=False, url_path="active-helpers")
     def active_helpers(self, request):
-        active_production_sessions = ProductionSession.objects.filter(
-            start_time__lte=timezone.now(),
-            end_time__gte=timezone.now()
-        )
+        active_production_sessions = ProductionSession.get_active()
         if len(active_production_sessions) == 0:
             return Response({"data": 0})
         helpers_on_line = {}
@@ -370,20 +210,118 @@ class Metric(viewsets.ViewSet):
 
     @action(detail=False, url_path="active-qc-actions")
     def active_qc_actions(self, request):
-        active_production_sessions = ProductionSession.objects.filter(
-            start_time__lte=timezone.now(),
-            end_time__gte=timezone.now()
-        )
+        active_production_sessions = ProductionSession.get_active()
         ftt, defective, rejected, rectified = 0, 0, 0, 0
         for prod_session in active_production_sessions:
             qc_inputs = prod_session.qcinput_set.filter()
             for qc_input in qc_inputs:
-                if qc_input.input_type == "ftt":
+                if qc_input.input_type == QcInput.FTT:
                     ftt += qc_input.quantity
-                elif qc_input.input_type == "defective":
+                elif qc_input.input_type == QcInput.DEFECTIVE:
                     defective += qc_input.quantity
-                elif qc_input.input_type == "rejected":
+                elif qc_input.input_type == QcInput.REJECTED:
                     rejected += qc_input.quantity
-                elif qc_input.input_type == "rectified":
+                elif qc_input.input_type == QcInput.RECTIFIED:
                     rectified += qc_input.quantity
         return Response({"ftt": ftt, "defective": defective, "rectified": rectified, "rejected": rejected})
+    
+    @action(detail=False, url_path="key-stats")
+    def key_stats(self, request):
+        active_sessions = ProductionSession.get_active()
+
+        headings = [
+            "line", "buyer", "style", "target", "production", "rtt", "rtt_variance",
+            "projected", "dhu", "efficiency",
+            # "defective", "rectified" ,"rejected",
+            "operators", "helpers", "shift"
+        ]
+        table_data = []
+
+        for prod_session in active_sessions:
+            session_key_stats = utils.get_stats([prod_session], prod_session.start_time, prod_session.end_time)
+            table_row = []
+            for heading in headings:
+                try:
+                    table_row.append(session_key_stats[heading])
+                except KeyError:
+                    table_row.append('-')
+            table_data.append(table_row)
+        return Response({"headings": headings, "tableData": table_data})
+    
+    @action(detail=False, url_path="hourly-stats")
+    def hourly_stats(self, request, pk=None):
+        headings = [
+            "hour", "production", "target", "target_variance", "rtt", "rtt_variance", "dhu",
+            "efficiency", "target_efficiency", "target_efficiency_variance", "ftt_rate", "defective_rate"
+        ]
+        table_data = []
+        # production_sessions = ProductionSession.get_active()
+
+        # Multi day production sessions will not be selected with this method
+        current_time = timezone.localtime(timezone.now())
+        day_start_time = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end_time = current_time.replace(hour=23, minute=59, second=59, microsecond=999999)
+        production_start_date_time = current_time.replace(hour=DAY_START_HOUR, minute=0, second=0, microsecond=0)
+        break_start_date_time = current_time.replace(hour=BREAK_START_HOUR, minute=BREAK_START_MINUTE, second=0, microsecond=0)
+        break_duration = timedelta(minutes=BREAK_MINUTES)
+        production_sessions = ProductionSession.objects.filter(
+            start_time__gte=day_start_time,
+            end_time__lte=day_end_time,
+        )
+
+        for hour in range(DAY_WORK_HOURS):
+            time_filter_start = production_start_date_time + timedelta(hours=1*hour)
+            time_filter_end = time_filter_start + timedelta(hours=1)
+            if time_filter_end > break_start_date_time:
+                time_filter_start += break_duration
+                time_filter_end += break_duration
+            stats = utils.get_stats(production_sessions, time_filter_start, time_filter_end)
+            if stats != None:
+                table_row = [f'{time_filter_start.strftime("%I:%M %p")} - {time_filter_end.strftime("%I:%M %p")}']
+                for heading in headings[1:]:
+                    try:
+                        table_row.append(stats[heading])
+                    except KeyError:
+                        table_row.append('-')
+                table_data.append(table_row)
+        
+        return Response({"headings": headings,"tableData":table_data})
+
+    @action(detail=False, url_path="hourly-production")
+    def hourly_production(self, request, pk=None):
+        headings = [""]
+        table_data = []
+
+        lines = Line.objects.all().order_by('number')
+
+        # Multi day production sessions will not be selected with this method
+        current_time = timezone.localtime(timezone.now())
+        day_start_time = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end_time = current_time.replace(hour=23, minute=59, second=59, microsecond=999999)
+        production_start_date_time = current_time.replace(hour=DAY_START_HOUR, minute=0, second=0, microsecond=0)
+        break_start_date_time = current_time.replace(hour=BREAK_START_HOUR, minute=BREAK_START_MINUTE, second=0, microsecond=0)
+        break_duration = timedelta(minutes=BREAK_MINUTES)
+
+        headings += [f'Line {line.number}' for line in lines]
+        for hour in range(DAY_WORK_HOURS):
+            time_filter_start = production_start_date_time + timedelta(hours=1*hour)
+            time_filter_end = time_filter_start + timedelta(hours=1)
+            if time_filter_end > break_start_date_time:
+                time_filter_start += break_duration
+                time_filter_end += break_duration
+            table_row = [f'{time_filter_start.strftime("%I:%M %p")} - {time_filter_end.strftime("%I:%M %p")}']
+            for line in lines:
+                production_sessions = ProductionSession.objects.filter(
+                    start_time__gte=day_start_time,
+                    end_time__lte=day_end_time,
+                    line=line
+                )
+                stats = utils.get_stats(production_sessions, time_filter_start, time_filter_end)
+                if stats != None:
+                    try:
+                        table_row.append(stats['production'])
+                    except KeyError:
+                        table_row.append('-')
+            table_data.append(table_row)
+        
+        return Response({"headings": headings,"tableData":table_data})

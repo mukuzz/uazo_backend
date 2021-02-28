@@ -16,4 +16,20 @@ class ProductionSession(models.Model):
     target = models.IntegerField()
 
     def __str__(self):
-        return f'{timezone.localtime(self.start_time).hour} to {timezone.localtime(self.end_time).hour} - {self.style}'
+        return f'{self.get_session_name()} - {self.style}'
+
+    def get_session_name(self):
+        local_start_time = timezone.localtime(self.start_time)
+        local_end_time = timezone.localtime(self.end_time)
+        if local_end_time - local_start_time > timezone.timedelta(days=1) \
+            or local_end_time.hour < local_start_time.hour:
+            return f'{local_start_time.strftime("%H:%M")} ({local_start_time.strftime("%d/%m/%Y")}) to {local_end_time.strftime("%H:%M")} ({local_end_time.strftime("%d/%m/%Y")})'
+        else:
+            return f'{local_start_time.strftime("%H:%M")} to {local_end_time.strftime("%H:%M")} ({local_start_time.strftime("%d/%m/%Y")})'
+    
+    @staticmethod
+    def get_active():
+        return ProductionSession.objects.filter(
+            start_time__lte=timezone.now(),
+            end_time__gte=timezone.now()
+        )

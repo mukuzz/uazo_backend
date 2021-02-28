@@ -3,25 +3,26 @@ from django.utils import timezone
 from django.db.models.signals import pre_delete, post_save, post_delete
 from django.dispatch import receiver
 from django.conf import settings
-from .prod_session import ProductionSession
-from .defect import Defect
-from .style import SizeQuantity
 
 
 class QcInputTemplate(models.Model):
+    FTT = 'ftt'
+    REJECTED = 'rejected'
+    RECTIFIED = 'rectified'
+    DEFECTIVE = 'defective'
     QC_INPUT_TYPES = (
-        ('ftt', 'pass'),
-        ('rejected', 'alter'),
-        ('rectified','rectified'),
-        ('defective', 'defective')
+        (FTT, 'pass'),
+        (REJECTED, 'alter'),
+        (RECTIFIED,'rectified'),
+        (DEFECTIVE, 'defective')
     )
     datetime = models.DateTimeField(default=timezone.now)
-    ftt = models.BooleanField(default=True)
+    is_ftt = models.BooleanField(default=True)
     input_type = models.CharField(max_length=56, choices=QC_INPUT_TYPES)
-    size = models.ForeignKey(SizeQuantity, on_delete=models.DO_NOTHING)
+    size = models.ForeignKey('mes.SizeQuantity', on_delete=models.DO_NOTHING)
     quantity = models.IntegerField(default=1)
-    defects = models.ManyToManyField(Defect, blank=True)
-    production_session = models.ForeignKey(ProductionSession, on_delete=models.CASCADE)
+    defects = models.ManyToManyField('mes.Defect', blank=True)
+    production_session = models.ForeignKey('mes.ProductionSession', on_delete=models.CASCADE)
     creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.DO_NOTHING)
 
     class Meta:
@@ -42,7 +43,7 @@ def migrate_qc_input(sender, instance, **kwargs):
     # Migrate the to be deleted QcInput to DeletedQcInput
     delted_qc_input = DeletedQcInput.objects.create(
         datetime=instance.datetime,
-        ftt=instance.ftt,
+        is_ftt=instance.is_ftt,
         input_type=instance.input_type,
         size=instance.size,
         quantity=instance.quantity,
