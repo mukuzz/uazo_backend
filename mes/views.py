@@ -12,17 +12,17 @@ from django.db.models.functions import TruncMinute, TruncHour, TruncHour, TruncD
 import math
 from . import utils
 
-# DAY_START_HOUR = 8
-# DAY_WORK_HOURS = 8
-# BREAK_START_HOUR = 13
-# BREAK_START_MINUTE = 30
-# BREAK_MINUTES = 30
-
-DAY_START_HOUR = 0
+DAY_START_HOUR = 8
 DAY_WORK_HOURS = 8
-BREAK_START_HOUR = 5
+BREAK_START_HOUR = 13
 BREAK_START_MINUTE = 30
 BREAK_MINUTES = 30
+
+# DAY_START_HOUR = 0
+# DAY_WORK_HOURS = 8
+# BREAK_START_HOUR = 5
+# BREAK_START_MINUTE = 30
+# BREAK_MINUTES = 30
 
 class ProductionOrderViewSet(viewsets.ModelViewSet):
     queryset = ProductionOrder.objects.all()

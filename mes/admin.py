@@ -1,11 +1,11 @@
 from django.contrib import admin
 import nested_admin
-from mes.models import ProductionOrder, Style, ProductionSession, QcInput, DeletedQcInput, Defect, SizeQuantity, Line, LineLocation, Buyer
+from mes.models import ProductionOrder, Style, ProductionSession, QcInput, DeletedQcInput, Defect, SizeQuantity, Line, LineLocation, Buyer, StyleCategory
 
-admin.site.site_header = "Uazo"
-admin.site.site_title = "Uazo"
+admin.site.site_header = "Magnolia"
+admin.site.site_title = "Magnolia"
 admin.site.index_title = "Uazo Admin"
-admin.site.site_url = "/dashboard"
+admin.site.site_url = None
 
 class SizeQuantityInline(admin.StackedInline):
     model = SizeQuantity
@@ -53,6 +53,13 @@ class ProductionOrderAdmin(nested_admin.NestedModelAdmin):
     save_as_continue = False
 
 admin.site.register(ProductionOrder, ProductionOrderAdmin)
+
+
+class StyleCategoryAdmin(admin.ModelAdmin):
+    list_display = ['category']
+    autocomplete_fields = ['defects']
+
+admin.site.register(StyleCategory, StyleCategoryAdmin)
 
 
 class ProductionSessionAdmin(admin.ModelAdmin):

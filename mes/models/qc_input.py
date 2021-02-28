@@ -19,11 +19,11 @@ class QcInputTemplate(models.Model):
     datetime = models.DateTimeField(default=timezone.now)
     is_ftt = models.BooleanField(default=True)
     input_type = models.CharField(max_length=56, choices=QC_INPUT_TYPES)
-    size = models.ForeignKey('mes.SizeQuantity', on_delete=models.DO_NOTHING)
-    quantity = models.IntegerField(default=1)
+    size = models.ForeignKey('mes.SizeQuantity', on_delete=models.PROTECT)
+    quantity = models.PositiveIntegerField(default=1)
     defects = models.ManyToManyField('mes.Defect', blank=True)
-    production_session = models.ForeignKey('mes.ProductionSession', on_delete=models.CASCADE)
-    creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.DO_NOTHING)
+    production_session = models.ForeignKey('mes.ProductionSession', on_delete=models.PROTECT)
+    creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
 
     class Meta:
         abstract = True

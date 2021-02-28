@@ -1,11 +1,12 @@
 from django.db import models
 from django.utils import timezone
 from django.db.models import Sum
+from django.core.validators import MinValueValidator
 
 
 class ProductionOrder(models.Model):
-    buyer = models.ForeignKey('mes.Buyer', on_delete=models.CASCADE)
-    quantity = models.IntegerField()
+    buyer = models.ForeignKey('mes.Buyer', on_delete=models.PROTECT)
+    quantity = models.PositiveIntegerField()
     receive_date_time = models.DateTimeField(default=timezone.now)
     due_date_time = models.DateTimeField()
     completed = models.BooleanField(default=False)

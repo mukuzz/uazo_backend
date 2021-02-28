@@ -7,8 +7,8 @@ class LineLocation(models.Model):
         return self.location
 
 class Line(models.Model):
-    number = models.IntegerField()
-    location = models.ForeignKey(LineLocation, on_delete=models.DO_NOTHING, blank=True)
+    number = models.PositiveIntegerField()
+    location = models.ForeignKey(LineLocation, on_delete=models.PROTECT, blank=True)
 
     def __str__(self):
         return f'{self.number}'
