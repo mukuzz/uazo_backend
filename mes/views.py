@@ -1,6 +1,6 @@
 from mes.models import ProductionOrder, Style, ProductionSession, QcInput, DeletedQcInput, Defect
 from rest_framework import viewsets
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 from mes.serializers.model_serializers import *
 from mes.serializers.query_serializers import TimeSeriesRequestQuerySerializer, DetailFilterQuerySerializer
@@ -23,6 +23,14 @@ BREAK_MINUTES = 30
 # BREAK_START_HOUR = 5
 # BREAK_START_MINUTE = 30
 # BREAK_MINUTES = 30
+
+@api_view(['GET'])
+def get_user(request):
+    user = request.user
+    return Response({
+        'username': user.username,
+        'email': user.email,
+    })
 
 class ProductionOrderViewSet(viewsets.ModelViewSet):
     queryset = ProductionOrder.objects.all()
