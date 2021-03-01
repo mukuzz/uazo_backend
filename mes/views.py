@@ -8,7 +8,7 @@ from django.utils import timezone
 from datetime import timedelta
 import datetime
 from django.db.models import Sum, Count, Q
-from django.db.models.functions import TruncMinute, TruncHour, TruncHour, TruncDate, TruncMonth
+from django.db.models.functions import TruncMinute, TruncHour, TruncHour, TruncDate, TruncMonth, Coalesce
 import math
 from . import utils
 
@@ -75,9 +75,10 @@ class DefectViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, url_path="most-frequent")
     def most_frequent(self, request):
-        defects = Defect.objects.annotate(defect_freq=Sum('qcinput__quantity')).order_by('-defect_freq')[:5]
+        defects = Defect.objects.annotate(defect_freq=Coalesce(Sum('qcinput__quantity'),0)).order_by('-defect_freq')[:5]
         data = []
-        for defect in defects[:5]:
+        for defect in defects:
+            print(defect)
             if defect.defect_freq != None:
                 if defect.defect_freq > 0:
                     data.append({
