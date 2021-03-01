@@ -210,20 +210,25 @@ class Metric(viewsets.ViewSet):
 
     @action(detail=False, url_path="active-qc-actions")
     def active_qc_actions(self, request):
-        active_production_sessions = ProductionSession.get_active()
-        ftt, defective, rejected, rectified = 0, 0, 0, 0
-        for prod_session in active_production_sessions:
-            qc_inputs = prod_session.qcinput_set.filter()
-            for qc_input in qc_inputs:
-                if qc_input.input_type == QcInput.FTT:
-                    ftt += qc_input.quantity
-                elif qc_input.input_type == QcInput.DEFECTIVE:
-                    defective += qc_input.quantity
-                elif qc_input.input_type == QcInput.REJECTED:
-                    rejected += qc_input.quantity
-                elif qc_input.input_type == QcInput.RECTIFIED:
-                    rectified += qc_input.quantity
-        return Response({"ftt": ftt, "defective": defective, "rectified": rectified, "rejected": rejected})
+        resp = {
+            "ftt": 0, "defective": 0, "rectified": 0, "rejected": 0, "ftt_percentage": "0.00%",
+            "defective_percentage": "0.00%", "rectified_percentage": "0.00%", "rejected_percentage": "0.00%",
+        }
+        current_time = timezone.localtime(timezone.now())
+        day_start_time = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end_time = current_time.replace(hour=23, minute=59, second=59, microsecond=999999)
+        production_sessions = ProductionSession.objects.filter(
+            start_time__gte=day_start_time,
+            end_time__lte=day_end_time,
+        )
+        stats = utils.get_stats(production_sessions, day_start_time, day_end_time)
+        if stats != None:
+            for key in resp.keys():
+                try:
+                    resp[key] = stats[key]
+                except KeyError:
+                    pass
+        return Response(resp)
     
     @action(detail=False, url_path="key-stats")
     def key_stats(self, request):
@@ -252,7 +257,7 @@ class Metric(viewsets.ViewSet):
     def hourly_stats(self, request, pk=None):
         headings = [
             "hour", "production", "target", "target_variance", "rtt", "rtt_variance", "dhu",
-            "efficiency", "target_efficiency", "target_efficiency_variance", "ftt_rate", "defective_rate"
+            "efficiency", "target_efficiency", "target_efficiency_variance", "ftt_percentage", "defective_percentage"
         ]
         table_data = []
         # production_sessions = ProductionSession.get_active()

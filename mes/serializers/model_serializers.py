@@ -1,11 +1,12 @@
 from rest_framework import serializers
-from mes.models import ProductionOrder, Style, ProductionSession, QcInput, Defect, SizeQuantity, Line, Buyer
+from mes.models import ProductionOrder, Style, ProductionSession, QcInput, Defect, SizeQuantity, Line, Buyer, StyleCategory
 
 
 class BuyerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Buyer
         fields = '__all__'
+
 
 class ProductionOrderSerializer(serializers.ModelSerializer):
     buyer = BuyerSerializer()
@@ -20,8 +21,15 @@ class SizeQuantitySerializer(serializers.ModelSerializer):
         fields = ['id', 'size', 'quantity']
 
 
+class StyleCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StyleCategory
+        fields = '__all__'
+
+
 class StyleSerializer(serializers.ModelSerializer):
     size_quantities = SizeQuantitySerializer(source='sizequantity_set',many=True, read_only=True)
+    category = StyleCategorySerializer()
 
     class Meta:
         model = Style
