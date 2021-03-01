@@ -81,6 +81,7 @@ class DefectViewSet(viewsets.ModelViewSet):
             if defect.defect_freq != None:
                 if defect.defect_freq > 0:
                     data.append({
+                        "id": defect.id,
                         "operation": defect.operation,
                         "defect": defect.defect,
                         "freq": defect.defect_freq

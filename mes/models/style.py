@@ -29,7 +29,7 @@ class Style(models.Model):
 class SizeQuantity(models.Model):
     size = models.CharField(max_length=256)
     quantity = models.PositiveIntegerField()
-    style = models.ForeignKey(Style, on_delete=models.PROTECT)
+    style = models.ForeignKey(Style, on_delete=models.CASCADE)
 
     def __str__(self):
         return f'{self.size} - {self.quantity}'
