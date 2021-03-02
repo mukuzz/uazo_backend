@@ -8,7 +8,7 @@ from django.core.validators import MinValueValidator
 
 class ProductionSession(models.Model):
     style = models.ForeignKey(Style, on_delete=models.PROTECT)
-    line = models.ForeignKey(Line, on_delete=models.PROTECT, blank=True)
+    line = models.ForeignKey(Line, on_delete=models.PROTECT)
     operators = models.PositiveIntegerField()
     helpers = models.PositiveIntegerField()
     assigned_qc = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True)
