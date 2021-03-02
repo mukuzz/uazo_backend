@@ -23,7 +23,7 @@ class Style(models.Model):
     order = models.ForeignKey('mes.ProductionOrder', on_delete=models.PROTECT)
 
     def __str__(self):
-        return f'{self.name} - {self.number}'
+        return self.number
 
 
 class SizeQuantity(models.Model):
