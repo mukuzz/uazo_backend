@@ -155,12 +155,21 @@ class Metric(viewsets.ViewSet):
 
     @action(detail=False, url_path="factory-efficiency")
     def factory_efficiency(self, request):
-        current_time = timezone.now()
-        active_production_sessions = ProductionSession.get_active()
+        query_params = DetailFilterQuerySerializer(data=request.query_params)
+        query_params.is_valid(raise_exception=True)
+        filter_date_time = query_params.validated_data['filterDateTime']
+
+        prod_sessions, prod_start_time, prod_duration, _, _ = utils.get_prod_sessions_and_timings(filter_date_time)
+
         manpower, elapsed_seconds, duration_seconds, sam, output, target = 0, 0, 0, 0, 0, 0
-        for production_session in active_production_sessions:
+        for production_session in prod_sessions:
+            adjusted_filter_date_time = filter_date_time
+            if filter_date_time < production_session.start_time:
+                adjusted_filter_date_time = production_session.start_time
+            elif filter_date_time > production_session.end_time:
+                adjusted_filter_date_time = production_session.end_time
             manpower += production_session.operators + production_session.helpers
-            elapsed_seconds += (current_time - production_session.start_time).total_seconds()
+            elapsed_seconds += (adjusted_filter_date_time - production_session.start_time).total_seconds()
             duration_seconds = (production_session.end_time - production_session.start_time).total_seconds()
             res = production_session.qcinput_set \
                 .filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED)) \
@@ -220,18 +229,20 @@ class Metric(viewsets.ViewSet):
 
     @action(detail=False, url_path="active-qc-actions")
     def active_qc_actions(self, request):
+        query_params = DetailFilterQuerySerializer(data=request.query_params)
+        query_params.is_valid(raise_exception=True)
+        filter_date_time = query_params.validated_data['filterDateTime']
+        
         resp = {
             "ftt": 0, "defective": 0, "rectified": 0, "rejected": 0, "ftt_percentage": "0.00%",
             "defective_percentage": "0.00%", "rectified_percentage": "0.00%", "rejected_percentage": "0.00%",
         }
-        current_time = timezone.localtime(timezone.now())
-        day_start_time = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end_time = current_time.replace(hour=23, minute=59, second=59, microsecond=999999)
-        production_sessions = ProductionSession.objects.filter(
-            start_time__gte=day_start_time,
-            end_time__lte=day_end_time,
-        )
-        stats = utils.get_stats(production_sessions, day_start_time, day_end_time)
+
+        prod_sessions, _, _, _, _ = utils.get_prod_sessions_and_timings(filter_date_time)
+        day_start_time = filter_date_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end_time = filter_date_time.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        stats = utils.get_stats(prod_sessions, day_start_time, day_end_time)
         if stats != None:
             for key in resp.keys():
                 try:
@@ -242,7 +253,9 @@ class Metric(viewsets.ViewSet):
     
     @action(detail=False, url_path="key-stats")
     def key_stats(self, request):
-        active_sessions = ProductionSession.get_active()
+        query_params = DetailFilterQuerySerializer(data=request.query_params)
+        query_params.is_valid(raise_exception=True)
+        filter_date_time = query_params.validated_data['filterDateTime']
 
         headings = [
             "line", "buyer", "style", "target", "production", "rtt", "rtt_variance",
@@ -252,8 +265,12 @@ class Metric(viewsets.ViewSet):
         ]
         table_data = []
 
-        for prod_session in active_sessions:
-            session_key_stats = utils.get_stats([prod_session], prod_session.start_time, prod_session.end_time)
+        prod_sessions, _, _, _, _ = utils.get_prod_sessions_and_timings(filter_date_time)
+        day_start_time = filter_date_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end_time = filter_date_time.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        for prod_session in prod_sessions:
+            session_key_stats = utils.get_stats([prod_session], day_start_time, day_end_time)
             table_row = []
             for heading in headings:
                 try:
@@ -265,32 +282,26 @@ class Metric(viewsets.ViewSet):
     
     @action(detail=False, url_path="hourly-stats")
     def hourly_stats(self, request, pk=None):
+        query_params = DetailFilterQuerySerializer(data=request.query_params)
+        query_params.is_valid(raise_exception=True)
+        filter_date_time = query_params.validated_data['filterDateTime']
+
         headings = [
-            "hour", "production", "target", "target_variance", "rtt", "rtt_variance", "dhu",
+            "hour", "production", "target", "target_variance", "dhu",
             "efficiency", "target_efficiency", "target_efficiency_variance", "ftt_percentage", "defective_percentage"
         ]
         table_data = []
-        # production_sessions = ProductionSession.get_active()
 
-        # Multi day production sessions will not be selected with this method
-        current_time = timezone.localtime(timezone.now())
-        day_start_time = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end_time = current_time.replace(hour=23, minute=59, second=59, microsecond=999999)
-        production_start_date_time = current_time.replace(hour=DAY_START_HOUR, minute=0, second=0, microsecond=0)
-        break_start_date_time = current_time.replace(hour=BREAK_START_HOUR, minute=BREAK_START_MINUTE, second=0, microsecond=0)
-        break_duration = timedelta(minutes=BREAK_MINUTES)
-        production_sessions = ProductionSession.objects.filter(
-            start_time__gte=day_start_time,
-            end_time__lte=day_end_time,
-        )
+        prod_sessions, prod_start_time, prod_duration, break_start_time, break_duration = utils.get_prod_sessions_and_timings(filter_date_time)
 
-        for hour in range(DAY_WORK_HOURS):
-            time_filter_start = production_start_date_time + timedelta(hours=1*hour)
+        hour = 0
+        while True:
+            time_filter_start = prod_start_time + timedelta(hours=1*hour)
             time_filter_end = time_filter_start + timedelta(hours=1)
-            if time_filter_end > break_start_date_time:
+            if time_filter_end > break_start_time:
                 time_filter_start += break_duration
                 time_filter_end += break_duration
-            stats = utils.get_stats(production_sessions, time_filter_start, time_filter_end)
+            stats = utils.get_stats(prod_sessions, time_filter_start, time_filter_end)
             if stats != None:
                 table_row = [f'{time_filter_start.strftime("%I:%M %p")} - {time_filter_end.strftime("%I:%M %p")}']
                 for heading in headings[1:]:
@@ -299,38 +310,37 @@ class Metric(viewsets.ViewSet):
                     except KeyError:
                         table_row.append('-')
                 table_data.append(table_row)
+            
+            hour += 1
+            if time_filter_end >= prod_start_time + prod_duration:
+                break
         
         return Response({"headings": headings,"tableData":table_data})
 
     @action(detail=False, url_path="hourly-production")
     def hourly_production(self, request, pk=None):
+        query_params = DetailFilterQuerySerializer(data=request.query_params)
+        query_params.is_valid(raise_exception=True)
+        filter_date_time = query_params.validated_data['filterDateTime']
+
         headings = [""]
         table_data = []
 
         lines = Line.objects.all().order_by('number')
 
-        # Multi day production sessions will not be selected with this method
-        current_time = timezone.localtime(timezone.now())
-        day_start_time = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end_time = current_time.replace(hour=23, minute=59, second=59, microsecond=999999)
-        production_start_date_time = current_time.replace(hour=DAY_START_HOUR, minute=0, second=0, microsecond=0)
-        break_start_date_time = current_time.replace(hour=BREAK_START_HOUR, minute=BREAK_START_MINUTE, second=0, microsecond=0)
-        break_duration = timedelta(minutes=BREAK_MINUTES)
+        prod_sessions, prod_start_time, prod_duration, break_start_time, break_duration = utils.get_prod_sessions_and_timings(filter_date_time)
 
         headings += [f'Line {line.number}' for line in lines]
-        for hour in range(DAY_WORK_HOURS):
-            time_filter_start = production_start_date_time + timedelta(hours=1*hour)
+        hour = 0
+        while True:
+            time_filter_start = prod_start_time + timedelta(hours=1*hour)
             time_filter_end = time_filter_start + timedelta(hours=1)
-            if time_filter_end > break_start_date_time:
+            if time_filter_end > break_start_time:
                 time_filter_start += break_duration
                 time_filter_end += break_duration
             table_row = [f'{time_filter_start.strftime("%I:%M %p")} - {time_filter_end.strftime("%I:%M %p")}']
             for line in lines:
-                production_sessions = ProductionSession.objects.filter(
-                    start_time__gte=day_start_time,
-                    end_time__lte=day_end_time,
-                    line=line
-                )
+                production_sessions = prod_sessions.filter(line=line)
                 stats = utils.get_stats(production_sessions, time_filter_start, time_filter_end)
                 if stats != None:
                     try:
@@ -338,5 +348,31 @@ class Metric(viewsets.ViewSet):
                     except KeyError:
                         table_row.append('-')
             table_data.append(table_row)
+
+            hour += 1
+            if time_filter_end >= prod_start_time + prod_duration:
+                break
         
         return Response({"headings": headings,"tableData":table_data})
+
+    @action(detail=False, url_path="frequent-defects")
+    def frequent_defects(self, request):
+        query_params = DetailFilterQuerySerializer(data=request.query_params)
+        query_params.is_valid(raise_exception=True)
+        filter_date_time = query_params.validated_data['filterDateTime']
+
+        day_start_time = filter_date_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end_time = filter_date_time.replace(hour=23, minute=59, second=59, microsecond=999999)
+        defects = Defect.objects\
+            .filter(qcinput__datetime__gte=day_start_time,qcinput__datetime__lte=day_end_time)\
+            .annotate(defect_freq=Coalesce(Sum('qcinput__quantity'),0)).order_by('-defect_freq')[:5]
+        data = []
+        for defect in defects:
+            if defect.defect_freq > 0:
+                data.append({
+                    "id": defect.id,
+                    "operation": defect.operation,
+                    "defect": defect.defect,
+                    "freq": defect.defect_freq
+                })
+        return Response({"data": data})
