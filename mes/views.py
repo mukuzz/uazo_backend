@@ -78,7 +78,6 @@ class DefectViewSet(viewsets.ModelViewSet):
         defects = Defect.objects.annotate(defect_freq=Coalesce(Sum('qcinput__quantity'),0)).order_by('-defect_freq')[:5]
         data = []
         for defect in defects:
-            print(defect)
             if defect.defect_freq != None:
                 if defect.defect_freq > 0:
                     data.append({

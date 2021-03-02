@@ -19,7 +19,7 @@ class QcInputTemplate(models.Model):
     datetime = models.DateTimeField(default=timezone.now)
     is_ftt = models.BooleanField(default=True)
     input_type = models.CharField(max_length=56, choices=QC_INPUT_TYPES)
-    size = models.ForeignKey('mes.SizeQuantity', on_delete=models.PROTECT)
+    size = models.ForeignKey('mes.SizeQuantity', on_delete=models.PROTECT, null=True, blank=True)
     quantity = models.PositiveIntegerField(default=1)
     defects = models.ManyToManyField('mes.Defect', blank=True)
     production_session = models.ForeignKey('mes.ProductionSession', on_delete=models.PROTECT)
@@ -30,7 +30,10 @@ class QcInputTemplate(models.Model):
         permissions = [('can_receive_new_qc_input_notification','Can receive notifications for new QC inputs')]
 
     def __str__(self):
-        return f'{self.size} - {self.quantity} - {self.production_session.style}'
+        if self.size == None:
+            return f'{self.quantity} - {self.production_session.style}'
+        else:
+            return f'{self.size} - {self.quantity} - {self.production_session.style}'
 
 
 class QcInput(QcInputTemplate):
