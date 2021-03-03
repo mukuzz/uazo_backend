@@ -29,6 +29,7 @@ BREAK_MINUTES = int(os.environ['BREAK_MINUTES'])
 def get_user(request):
     user = request.user
     return Response({
+        'id': user.id,
         'username': user.username,
         'email': user.email,
     })
