@@ -24,7 +24,7 @@ def get_stats(prod_sessions, start_time, end_time):
         style = prod_session.style
         if styles != '':
             styles += ', '
-        styles += f'{style.number} {style.name}'
+        styles += f'{style.number}'
 
         operators += prod_session.operators
         helpers += prod_session.helpers
