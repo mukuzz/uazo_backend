@@ -18,7 +18,7 @@ class StyleInline(admin.StackedInline):
     extra = 0
 
 class StyleAdmin(admin.ModelAdmin):
-    list_display = ['name', 'number', 'category', 'color', 'order']
+    list_display = ['number', 'category', 'color', 'order']
     inlines = [SizeQuantityInline]
     filter_horizontal = ['defects']
     fields = ('order', 'name', 'number', 'category', 'color', 'sam', 'defects')
@@ -74,7 +74,7 @@ admin.site.register(ProductionSession, ProductionSessionAdmin)
 
 class QcInputAdmin(admin.ModelAdmin):
     date_hierarchy = 'datetime'
-    list_display = ['input_type', 'size', 'quantity', 'production_session']
+    list_display = ['input_type', 'size', 'quantity', 'datetime', 'production_session']
     list_filter = ['input_type', 'production_session']
 
 admin.site.register(QcInput, QcInputAdmin)
@@ -82,7 +82,7 @@ admin.site.register(QcInput, QcInputAdmin)
 
 class DeletedQcInputAdmin(admin.ModelAdmin):
     date_hierarchy = 'datetime'
-    list_display = ['input_type', 'size', 'quantity', 'production_session']
+    list_display = ['input_type', 'size', 'quantity', 'deletion_datetime', 'production_session']
     list_filter = ['input_type', 'production_session']
 
     def has_change_permission(self, request, obj=None):

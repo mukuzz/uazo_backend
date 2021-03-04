@@ -17,7 +17,7 @@ class Style(models.Model):
     number = models.CharField(max_length=256)
     category = models.ForeignKey(StyleCategory, on_delete=models.PROTECT)
     color = models.CharField(max_length=256)
-    name = models.CharField(max_length=256, blank=True, null=True)
+    name = models.CharField(max_length=256, blank=True)
     sam = models.FloatField(validators=[MinValueValidator(0.001, message="sam should be greater than 0")])
     defects = models.ManyToManyField('mes.Defect')
     order = models.ForeignKey('mes.ProductionOrder', on_delete=models.PROTECT)

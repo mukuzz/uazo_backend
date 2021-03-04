@@ -3,6 +3,7 @@ from django.utils import timezone
 from django.db.models.signals import pre_delete, post_save, post_delete
 from django.dispatch import receiver
 from django.conf import settings
+import uuid
 
 
 class QcInputTemplate(models.Model):
@@ -16,6 +17,7 @@ class QcInputTemplate(models.Model):
         (RECTIFIED,'rectified'),
         (DEFECTIVE, 'defective')
     )
+    id = models.CharField(max_length=36, primary_key=True, default=uuid.uuid4, editable=False)
     datetime = models.DateTimeField(default=timezone.now)
     is_ftt = models.BooleanField(default=True)
     input_type = models.CharField(max_length=56, choices=QC_INPUT_TYPES)
@@ -45,6 +47,7 @@ class DeletedQcInput(QcInputTemplate):
 def migrate_qc_input(sender, instance, **kwargs):
     # Migrate the to be deleted QcInput to DeletedQcInput
     delted_qc_input = DeletedQcInput.objects.create(
+        id = instance.id,
         datetime=instance.datetime,
         is_ftt=instance.is_ftt,
         input_type=instance.input_type,

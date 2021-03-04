@@ -3,7 +3,7 @@ from django.utils import timezone
 
 
 class Defect(models.Model):
-    operation = models.CharField(max_length=256, blank=True, null=True)
+    operation = models.CharField(max_length=256, blank=True)
     defect = models.CharField(max_length=256)
 
     def __str__(self):

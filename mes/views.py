@@ -13,18 +13,6 @@ import math
 from . import utils
 import os
 
-DAY_START_HOUR = int(os.environ['DAY_START_HOUR'])
-DAY_WORK_HOURS = int(os.environ['DAY_WORK_HOURS'])
-BREAK_START_HOUR = int(os.environ['BREAK_START_HOUR'])
-BREAK_START_MINUTE = int(os.environ['BREAK_START_MINUTE'])
-BREAK_MINUTES = int(os.environ['BREAK_MINUTES'])
-
-# DAY_START_HOUR = 0
-# DAY_WORK_HOURS = 8
-# BREAK_START_HOUR = 5
-# BREAK_START_MINUTE = 30
-# BREAK_MINUTES = 30
-
 @api_view(['GET'])
 def get_user(request):
     user = request.user
