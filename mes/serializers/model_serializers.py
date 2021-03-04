@@ -58,6 +58,7 @@ class DefectSerializer(serializers.ModelSerializer):
 class QcInputSerializer(serializers.ModelSerializer):
     defect_ids = serializers.PrimaryKeyRelatedField(queryset=Defect.objects.all(), many=True, write_only=True)
     defects = DefectSerializer(many=True, read_only=True)
+    id = serializers.CharField(required=True, max_length=36)
 
     class Meta:
         model = QcInput
