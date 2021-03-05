@@ -7,8 +7,8 @@ from mes.serializers.query_serializers import TimeSeriesRequestQuerySerializer, 
 from django.utils import timezone
 from datetime import timedelta
 import datetime
-from django.db.models import Sum, Count, Q
-from django.db.models.functions import TruncMinute, TruncHour, TruncHour, TruncDate, TruncMonth, Coalesce
+from django.db.models import Sum, Count, Q, Value, CharField
+from django.db.models.functions import Coalesce, Concat, Cast
 import math
 from . import utils
 import os
@@ -354,14 +354,39 @@ class Metric(viewsets.ViewSet):
         day_end_time = filter_date_time.replace(hour=23, minute=59, second=59, microsecond=999999)
         defects = Defect.objects\
             .filter(qcinput__datetime__gte=day_start_time,qcinput__datetime__lte=day_end_time)\
-            .annotate(defect_freq=Coalesce(Sum('qcinput__quantity'),0)).order_by('-defect_freq')[:5]
-        data = []
+            .annotate(
+                defect_freq=Coalesce(Sum('qcinput__quantity'),0),
+                affected_lines=Concat(
+                    Cast(
+                        'qcinput__production_session__line__number',
+                        output_field=CharField(),
+                    ),
+                    Value(', '),
+                ),
+            )
+        
+        defects_data = {}
         for defect in defects:
-            if defect.defect_freq > 0:
-                data.append({
+            try:
+                d_data = defects_data[defect.id]
+                # Add data if defect already added to dict
+                d_data["freq"] += defect.defect_freq
+                d_data["affected_lines"] += defect.affected_lines
+            except KeyError:
+                defects_data[defect.id] = {
                     "id": defect.id,
                     "operation": defect.operation,
                     "defect": defect.defect,
-                    "freq": defect.defect_freq
-                })
-        return Response({"data": data})
+                    "freq": defect.defect_freq,
+                    "affected_lines": defect.affected_lines
+                }
+
+        defects_data_list = []
+        for key, value in defects_data.items():
+            # Remove the last two characters [',',' ']
+            value["affected_lines"] = value["affected_lines"][:-2]
+            defects_data_list.append(value)
+
+        sorted_defects_data_list = sorted(defects_data_list, key=lambda x: x["freq"], reverse=True)
+
+        return Response({"data": sorted_defects_data_list[:5]})

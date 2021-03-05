@@ -11,5 +11,5 @@ class Line(models.Model):
     location = models.ForeignKey(LineLocation, on_delete=models.PROTECT)
 
     def __str__(self):
-        return f'{self.number}'
+        return f'{self.number} - {self.location}'
 
