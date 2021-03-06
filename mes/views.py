@@ -178,6 +178,7 @@ class Metric(viewsets.ViewSet):
         query_params.is_valid(raise_exception=True)
         start = query_params.validated_data['start']
         end = query_params.validated_data['end']
+        _, prod_start_time, _, _, _ = utils.get_prod_sessions_and_timings(end)
 
         if end - start > timedelta(days=90):
             raise serializers.ValidationError({"date range should be less than or equal to 90 days"})
@@ -186,12 +187,12 @@ class Metric(viewsets.ViewSet):
         output = 0
 
         qc_inputs = QcInput.objects\
-            .filter(datetime__lte=start)\
+            .filter(datetime__lte=prod_start_time)\
             .filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))
         for qc_input in qc_inputs:
             output += qc_input.quantity
         if output > 0:
-            labels.append(timezone.localtime(start))
+            labels.append(timezone.localtime(prod_start_time))
             data.append(output)
         
         qc_inputs = QcInput.objects\
