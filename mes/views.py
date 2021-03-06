@@ -81,9 +81,15 @@ class DefectViewSet(viewsets.ModelViewSet):
 
 class Metric(viewsets.ViewSet):
 
-    @action(detail=False, url_path="active-orders-status")
-    def active_orders_status(self, request):
-        active_orders = ProductionOrder.objects.filter(completed=False)
+    @action(detail=False, url_path="active-orders-progress")
+    def active_orders_progress(self, request):
+        query_params = DetailFilterQuerySerializer(data=request.query_params)
+        query_params.is_valid(raise_exception=True)
+        filter_date_time = timezone.localtime(query_params.validated_data['filterDateTime'])
+
+        day_end_time = filter_date_time.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        active_orders = ProductionOrder.objects.filter(due_date_time__gte=day_end_time)
         data = []
         for order in active_orders:
             produced = 0
@@ -92,7 +98,64 @@ class Metric(viewsets.ViewSet):
                 .filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))
             for qc_input in qc_inputs:
                 produced += qc_input.quantity
-            data.append({"buyer": order.buyer.buyer, "produced": produced, "target": order.quantity()})
+            data.append({"label": order.buyer.buyer, "produced": produced, "target": order.quantity()})
+        return Response({"data": data})
+    
+    @action(detail=False, url_path="active-styles-progress")
+    def active_styles_progress(self, request):
+        query_params = DetailFilterQuerySerializer(data=request.query_params)
+        query_params.is_valid(raise_exception=True)
+        filter_date_time = timezone.localtime(query_params.validated_data['filterDateTime'])
+
+        day_end_time = filter_date_time.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        active_styles = Style.objects.filter(order__due_date_time__gte=day_end_time)
+        data = []
+        for style in active_styles:
+            produced = 0
+            qc_inputs = QcInput.objects\
+                .filter(production_session__style=style)\
+                .filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))
+            for qc_input in qc_inputs:
+                produced += qc_input.quantity
+            data.append({
+                "label": f'{style.number} ({style.order.buyer.buyer})',
+                "produced": produced,
+                "target": style.quantity(),
+            })
+        return Response({"data": data})
+    
+    @action(detail=False, url_path="lines-progress")
+    def lines_progress(self, request):
+        query_params = DetailFilterQuerySerializer(data=request.query_params)
+        query_params.is_valid(raise_exception=True)
+        filter_date_time = timezone.localtime(query_params.validated_data['filterDateTime'])
+
+        day_start_time = filter_date_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end_time = filter_date_time.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        production_sessions = ProductionSession.objects.filter(
+            start_time__gte=day_start_time,
+            end_time__lte=day_end_time
+        )
+        unique_active_lines = set()
+        for session in production_sessions:
+            unique_active_lines.add(session.line)
+        active_lines = list(unique_active_lines)
+        data = []
+        for line in active_lines:
+            produced = 0
+            qc_inputs = QcInput.objects\
+                .filter(production_session__line=line)\
+                .filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))
+            for qc_input in qc_inputs:
+                produced += qc_input.quantity
+            target = line.productionsession_set.aggregate(target=Sum('target'))['target']
+            data.append({
+                "label": f'Line {line.number}',
+                "produced": produced,
+                "target": target,
+            })
         return Response({"data": data})
 
     @action(detail=False, url_path="output-timeseries")
@@ -132,7 +195,6 @@ class Metric(viewsets.ViewSet):
             labels.append(timezone.localtime(qc_input.datetime))
             data.append(output)
         return Response({"labels":labels, "data": data})
-
     
     @action(detail=False, url_path="active-lines")
     def active_lines(self, request):
@@ -146,7 +208,7 @@ class Metric(viewsets.ViewSet):
     def factory_efficiency(self, request):
         query_params = DetailFilterQuerySerializer(data=request.query_params)
         query_params.is_valid(raise_exception=True)
-        filter_date_time = query_params.validated_data['filterDateTime']
+        filter_date_time = timezone.localtime(query_params.validated_data['filterDateTime'])
 
         prod_sessions, prod_start_time, prod_duration, _, _ = utils.get_prod_sessions_and_timings(filter_date_time)
 
@@ -220,7 +282,7 @@ class Metric(viewsets.ViewSet):
     def active_qc_actions(self, request):
         query_params = DetailFilterQuerySerializer(data=request.query_params)
         query_params.is_valid(raise_exception=True)
-        filter_date_time = query_params.validated_data['filterDateTime']
+        filter_date_time = timezone.localtime(query_params.validated_data['filterDateTime'])
         
         resp = {
             "ftt": 0, "defective": 0, "rectified": 0, "rejected": 0, "ftt_percentage": "0.00%",
@@ -244,7 +306,7 @@ class Metric(viewsets.ViewSet):
     def key_stats(self, request):
         query_params = DetailFilterQuerySerializer(data=request.query_params)
         query_params.is_valid(raise_exception=True)
-        filter_date_time = query_params.validated_data['filterDateTime']
+        filter_date_time = timezone.localtime(query_params.validated_data['filterDateTime'])
 
         headings = [
             "line", "buyer", "style", "target", "production", "rtt", "rtt_variance",
@@ -273,7 +335,7 @@ class Metric(viewsets.ViewSet):
     def hourly_stats(self, request, pk=None):
         query_params = DetailFilterQuerySerializer(data=request.query_params)
         query_params.is_valid(raise_exception=True)
-        filter_date_time = query_params.validated_data['filterDateTime']
+        filter_date_time = timezone.localtime(query_params.validated_data['filterDateTime'])
 
         headings = [
             "hour", "production", "target", "target_variance", "dhu",
@@ -310,7 +372,7 @@ class Metric(viewsets.ViewSet):
     def hourly_production(self, request, pk=None):
         query_params = DetailFilterQuerySerializer(data=request.query_params)
         query_params.is_valid(raise_exception=True)
-        filter_date_time = query_params.validated_data['filterDateTime']
+        filter_date_time = timezone.localtime(query_params.validated_data['filterDateTime'])
 
         headings = [""]
         table_data = []
@@ -348,7 +410,7 @@ class Metric(viewsets.ViewSet):
     def frequent_defects(self, request):
         query_params = DetailFilterQuerySerializer(data=request.query_params)
         query_params.is_valid(raise_exception=True)
-        filter_date_time = query_params.validated_data['filterDateTime']
+        filter_date_time = timezone.localtime(query_params.validated_data['filterDateTime'])
 
         day_start_time = filter_date_time.replace(hour=0, minute=0, second=0, microsecond=0)
         day_end_time = filter_date_time.replace(hour=23, minute=59, second=59, microsecond=999999)

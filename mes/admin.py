@@ -76,6 +76,7 @@ class QcInputAdmin(admin.ModelAdmin):
     date_hierarchy = 'datetime'
     list_display = ['input_type', 'size', 'quantity', 'datetime', 'production_session']
     list_filter = ['input_type', 'production_session']
+    ordering = ['-datetime']
 
 admin.site.register(QcInput, QcInputAdmin)
 
@@ -84,6 +85,7 @@ class DeletedQcInputAdmin(admin.ModelAdmin):
     date_hierarchy = 'datetime'
     list_display = ['input_type', 'size', 'quantity', 'deletion_datetime', 'production_session']
     list_filter = ['input_type', 'production_session']
+    ordering = ['-deletion_datetime']
 
     def has_change_permission(self, request, obj=None):
         return False

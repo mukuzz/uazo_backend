@@ -24,6 +24,12 @@ class Style(models.Model):
 
     def __str__(self):
         return self.number
+    
+    def quantity(self):
+        quantity = 0
+        for sizequantity in self.sizequantity_set.all():
+            quantity += sizequantity.quantity
+        return quantity
 
 
 class SizeQuantity(models.Model):
