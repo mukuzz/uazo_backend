@@ -178,7 +178,7 @@ class Metric(viewsets.ViewSet):
         query_params.is_valid(raise_exception=True)
         start = query_params.validated_data['start']
         end = query_params.validated_data['end']
-        _, prod_start_time, _, _, _ = utils.get_prod_sessions_and_timings(end)
+        _, prod_start_time, _, _, _ = utils.get_prod_sessions_and_timings(start)
 
         if end - start > timedelta(days=90):
             raise serializers.ValidationError({"date range should be less than or equal to 90 days"})
