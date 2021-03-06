@@ -139,8 +139,13 @@ class Metric(viewsets.ViewSet):
             end_time__lte=day_end_time
         )
         unique_active_lines = set()
+        targets = {}
         for session in production_sessions:
             unique_active_lines.add(session.line)
+            try:
+                targets[session.line.number] += session.target
+            except KeyError:
+                targets[session.line.number] = session.target
         active_lines = list(unique_active_lines)
         data = []
         for line in active_lines:
@@ -150,11 +155,10 @@ class Metric(viewsets.ViewSet):
                 .filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))
             for qc_input in qc_inputs:
                 produced += qc_input.quantity
-            target = line.productionsession_set.aggregate(target=Sum('target'))['target']
             data.append({
                 "label": f'Line {line.number}',
                 "produced": produced,
-                "target": target,
+                "target": targets[line.number],
             })
         return Response({"data": data})
 
