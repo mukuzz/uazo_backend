@@ -7,3 +7,4 @@ class TimeSeriesRequestQuerySerializer(serializers.Serializer):
 
 class DetailFilterQuerySerializer(serializers.Serializer):
     filterDateTime = serializers.DateTimeField(default=timezone.now)
+    # filterStyle = serializers.PrimaryKeyRelatedField()

@@ -348,7 +348,7 @@ class Metric(viewsets.ViewSet):
 
         headings = [
             "hour", "production", "target", "target_variance", "dhu",
-            "efficiency", "target_efficiency", "target_efficiency_variance", "ftt_percentage", "defective_percentage"
+            "efficiency", "target_efficiency", "ftt_percentage", "defective_percentage"
         ]
         table_data = []
 

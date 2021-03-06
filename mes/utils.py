@@ -109,7 +109,7 @@ def get_stats(prod_sessions, start_time, end_time):
     if duration_seconds > 0:
         rtt = target * (elapsed_seconds / duration_seconds)
         stats["rtt"] = round(rtt)
-        stats["rtt_variance"] = round(rtt - output)
+        stats["rtt_variance"] = round(rtt) - output
 
         if manpower > 0 and elapsed_seconds > 0:
             rtt_efficiency = rtt * sam * 100 / (manpower * elapsed_seconds / 60)
@@ -117,7 +117,7 @@ def get_stats(prod_sessions, start_time, end_time):
             stats["rtt_efficiency_variance"] = f'{round(rtt_efficiency - efficiency, 2)}%'
 
     # Calculate Target Variance
-    stats["target_variance"] = round(target - output)
+    stats["target_variance"] = round(target) - output
 
     # Calculate Projected Output
     if elapsed_seconds > 0:
