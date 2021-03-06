@@ -140,24 +140,29 @@ class Metric(viewsets.ViewSet):
         )
         unique_active_lines = set()
         targets = {}
+        productions = {}
         for session in production_sessions:
             unique_active_lines.add(session.line)
             try:
                 targets[session.line.number] += session.target
             except KeyError:
                 targets[session.line.number] = session.target
-        active_lines = list(unique_active_lines)
-        data = []
-        for line in active_lines:
             produced = 0
             qc_inputs = QcInput.objects\
-                .filter(production_session__line=line)\
+                .filter(production_session=session)\
                 .filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))
             for qc_input in qc_inputs:
                 produced += qc_input.quantity
+            try:
+                productions[session.line.number] += produced
+            except KeyError:
+                productions[session.line.number] = produced
+        active_lines = list(unique_active_lines)
+        data = []
+        for line in active_lines:
             data.append({
                 "label": f'Line {line.number}',
-                "produced": produced,
+                "produced": productions[line.number],
                 "target": targets[line.number],
             })
         return Response({"data": data})
