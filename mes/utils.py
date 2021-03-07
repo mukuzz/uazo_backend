@@ -137,12 +137,66 @@ def get_stats(prod_sessions, start_time, end_time):
     return stats
 
 
+from mes.serializers.query_serializers import DetailFilterQuerySerializer
+
+def get_filter_values_from_query_params(query_params):
+    query_params = DetailFilterQuerySerializer(data=query_params)
+    query_params.is_valid(raise_exception=True)
+    start_time = timezone.localtime(query_params.validated_data['startDateTime'])
+    end_time = timezone.localtime(query_params.validated_data['endDateTime'])
+    order = query_params.validated_data['order']
+    style = query_params.validated_data['style']
+    line = query_params.validated_data['line']
+    return start_time, end_time, order, style, line
+
+
 import os
 from .models import ProductionSession
 from datetime import timedelta
 BREAK_START_HOUR = int(os.environ['BREAK_START_HOUR'])
 BREAK_START_MINUTE = int(os.environ['BREAK_START_MINUTE'])
 BREAK_MINUTES = int(os.environ['BREAK_MINUTES'])
+
+def get_prod_sessions_for_time_range(start_time, end_time):
+    return ProductionSession.objects.filter(
+        start_time__gte=start_time,
+        end_time__lte=end_time,
+    )
+
+def get_prod_sessions_timings(prod_sessions):
+    session_start_times, session_end_times = [], []
+    for prod_session in prod_sessions:
+        session_start_times.append(timezone.localtime(prod_session.start_time))
+        session_end_times.append(timezone.localtime(prod_session.end_time))
+    
+    if len(session_start_times) > 0 and len(session_end_times) > 0:
+        prod_start_time = min(session_start_times)
+        prod_end_time = max(session_end_times)
+    else:
+        day = timezone.localtime(timezone.now())
+        prod_start_time = day.replace(hour=8, minute=0, second=0, microsecond=0)
+        prod_end_time =  day.replace(hour=16, minute=0, second=0, microsecond=0)
+    prod_duration = prod_end_time - prod_start_time
+
+    return prod_start_time, prod_duration
+
+def apply_filters_on_prod_sessions(prod_sessions_filter, order_id, style_id, line_id):
+    if order_id != None:
+        prod_sessions_filter = prod_sessions_filter.filter(style__order__id=order_id)
+    if style_id != None:
+        prod_sessions_filter = prod_sessions_filter.filter(style__id=style_id)
+    if line_id != None:
+        prod_sessions_filter = prod_sessions_filter.filter(line__id=line_id)
+    return prod_sessions_filter
+
+def apply_filters_on_defects(defects_filter, order_id, style_id, line_id):
+    if order_id != None:
+        defects_filter = defects_filter.filter(qcinput__production_session__style__order__id=order_id)
+    if style_id != None:
+        defects_filter = defects_filter.filter(qcinput__production_session__style__id=style_id)
+    if line_id != None:
+        defects_filter = defects_filter.filter(qcinput__production_session__id=line_id)
+    return defects_filter
 
 def get_prod_sessions_and_timings(day):
     day = timezone.localtime(day)

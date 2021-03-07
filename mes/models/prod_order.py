@@ -6,6 +6,7 @@ from django.core.validators import MinValueValidator
 
 class ProductionOrder(models.Model):
     buyer = models.ForeignKey('mes.Buyer', on_delete=models.PROTECT)
+    order_number = models.CharField(max_length=256, default=timezone.now)
     quantity = models.PositiveIntegerField()
     receive_date_time = models.DateTimeField(default=timezone.now)
     due_date_time = models.DateTimeField()

@@ -46,7 +46,7 @@ class StyleNestedInline(nested_admin.NestedStackedInline):
 class ProductionOrderAdmin(nested_admin.NestedModelAdmin):
     inlines = [StyleNestedInline]
     date_hierarchy = 'due_date_time'
-    list_display = ['buyer', 'quantity', 'receive_date_time', 'due_date_time', 'completed']
+    list_display = ['order_number', 'buyer', 'quantity', 'receive_date_time', 'due_date_time', 'completed']
     list_filter = ['buyer__buyer', 'receive_date_time', 'due_date_time', 'completed']
     search_fields = ['buyer__buyer']
     save_as = True

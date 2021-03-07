@@ -78,48 +78,56 @@ class DefectViewSet(viewsets.ModelViewSet):
                     })
         return Response({"data": data})
 
+class LineViewSet(viewsets.ModelViewSet):
+    queryset = Line.objects.all()
+    serializer_class = LineSerializer
+
 
 class Metric(viewsets.ViewSet):
 
-    @action(detail=False, url_path="active-orders-progress")
-    def active_orders_progress(self, request):
-        query_params = DetailFilterQuerySerializer(data=request.query_params)
-        query_params.is_valid(raise_exception=True)
-        filter_date_time = timezone.localtime(query_params.validated_data['filterDateTime'])
+    @action(detail=False, url_path="orders-progress")
+    def orders_progress(self, request):
+        start_time, end_time, order_id, style_id, line_id = utils.get_filter_values_from_query_params(request.query_params)
 
-        day_end_time = filter_date_time.replace(hour=23, minute=59, second=59, microsecond=999999)
-
-        active_orders = ProductionOrder.objects.filter(due_date_time__gte=day_end_time)
+        orders_filter = ProductionOrder.objects.filter(due_date_time__gte=start_time)
+        if order_id != None:
+            orders_filter = orders_filter.filter(id=order_id)
         data = []
-        for order in active_orders:
+        for order in orders_filter:
             produced = 0
-            qc_inputs = QcInput.objects\
-                .filter(production_session__style__order=order)\
-                .filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))
-            for qc_input in qc_inputs:
+            qc_inputs_filter = QcInput.objects.filter(production_session__style__order=order)
+            if style_id != None:
+                qc_inputs_filter = qc_inputs_filter.filter(production_session__style__id=style_id)
+            if line_id != None:
+                qc_inputs_filter = qc_inputs_filter.filter(production_session__line__id=line_id)
+            qc_inputs_filter = qc_inputs_filter.filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))
+            for qc_input in qc_inputs_filter:
                 produced += qc_input.quantity
             data.append({"label": order.buyer.buyer, "produced": produced, "target": order.quantity()})
         return Response({"data": data})
     
-    @action(detail=False, url_path="active-styles-progress")
-    def active_styles_progress(self, request):
-        query_params = DetailFilterQuerySerializer(data=request.query_params)
-        query_params.is_valid(raise_exception=True)
-        filter_date_time = timezone.localtime(query_params.validated_data['filterDateTime'])
+    @action(detail=False, url_path="styles-progress")
+    def styles_progress(self, request):
+        start_time, end_time, order_id, style_id, line_id = utils.get_filter_values_from_query_params(request.query_params)
 
-        day_end_time = filter_date_time.replace(hour=23, minute=59, second=59, microsecond=999999)
-
-        active_styles = Style.objects.filter(order__due_date_time__gte=day_end_time)
+        styles_filter = Style.objects.filter(order__due_date_time__gte=start_time)
+        if style_id != None:
+            styles_filter = styles_filter.filter(id=style_id)
+        if order_id != None:
+            styles_filter = styles_filter.filter(order__id=order_id)
         data = []
-        for style in active_styles:
+        for style in styles_filter:
             produced = 0
-            qc_inputs = QcInput.objects\
-                .filter(production_session__style=style)\
-                .filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))
-            for qc_input in qc_inputs:
+            qc_inputs_filter = QcInput.objects.filter(production_session__style=style)
+            if order_id != None:
+                qc_inputs_filter = qc_inputs_filter.filter(production_session__style__order__id=order_id)
+            if line_id != None:
+                qc_inputs_filter = qc_inputs_filter.filter(production_session__line__id=line_id)
+            qc_inputs_filter = qc_inputs_filter.filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))
+            for qc_input in qc_inputs_filter:
                 produced += qc_input.quantity
             data.append({
-                "label": f'{style.number} ({style.order.buyer.buyer})',
+                "label": f'{style.number}',
                 "produced": produced,
                 "target": style.quantity(),
             })
@@ -127,16 +135,12 @@ class Metric(viewsets.ViewSet):
     
     @action(detail=False, url_path="lines-progress")
     def lines_progress(self, request):
-        query_params = DetailFilterQuerySerializer(data=request.query_params)
-        query_params.is_valid(raise_exception=True)
-        filter_date_time = timezone.localtime(query_params.validated_data['filterDateTime'])
-
-        day_start_time = filter_date_time.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end_time = filter_date_time.replace(hour=23, minute=59, second=59, microsecond=999999)
+        # TODO tranform to target achieved request
+        start_time, end_time, order, style, line = utils.get_filter_values_from_query_params(request.query_params)
 
         production_sessions = ProductionSession.objects.filter(
-            start_time__gte=day_start_time,
-            end_time__lte=day_end_time
+            start_time__gte=start_time,
+            end_time__lte=end_time
         )
         unique_active_lines = set()
         targets = {}
@@ -214,14 +218,13 @@ class Metric(viewsets.ViewSet):
             active_lines.add(session.line)
         return Response({"data": [LineSerializer(line).data for line in active_lines]})
 
-    @action(detail=False, url_path="factory-efficiency")
-    def factory_efficiency(self, request):
-        query_params = DetailFilterQuerySerializer(data=request.query_params)
-        query_params.is_valid(raise_exception=True)
-        filter_date_time = timezone.localtime(query_params.validated_data['filterDateTime'])
+    @action(detail=False, url_path="efficiency")
+    def efficiency(self, request):
+        start_time, end_time, order_id, style_id, line_id = utils.get_filter_values_from_query_params(request.query_params)
+        prod_sessions = utils.get_prod_sessions_for_time_range(start_time, end_time)
+        prod_sessions = utils.apply_filters_on_prod_sessions(prod_sessions, order_id, style_id, line_id)
 
-        prod_sessions, prod_start_time, prod_duration, _, _ = utils.get_prod_sessions_and_timings(filter_date_time)
-
+        filter_date_time = end_time
         manpower, elapsed_seconds, duration_seconds, sam, output, target = 0, 0, 0, 0, 0, 0
         for production_session in prod_sessions:
             adjusted_filter_date_time = filter_date_time
@@ -288,22 +291,18 @@ class Metric(viewsets.ViewSet):
             helpers += value
         return Response({"data": helpers})
 
-    @action(detail=False, url_path="active-qc-actions")
-    def active_qc_actions(self, request):
-        query_params = DetailFilterQuerySerializer(data=request.query_params)
-        query_params.is_valid(raise_exception=True)
-        filter_date_time = timezone.localtime(query_params.validated_data['filterDateTime'])
+    @action(detail=False, url_path="qc-actions")
+    def qc_actions(self, request):
+        start_time, end_time, order_id, style_id, line_id = utils.get_filter_values_from_query_params(request.query_params)
+        prod_sessions = utils.get_prod_sessions_for_time_range(start_time, end_time)
+        prod_sessions = utils.apply_filters_on_prod_sessions(prod_sessions, order_id, style_id, line_id)
         
         resp = {
             "ftt": 0, "defective": 0, "rectified": 0, "rejected": 0, "ftt_percentage": "0.00%",
             "defective_percentage": "0.00%", "rectified_percentage": "0.00%", "rejected_percentage": "0.00%",
         }
 
-        prod_sessions, _, _, _, _ = utils.get_prod_sessions_and_timings(filter_date_time)
-        day_start_time = filter_date_time.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end_time = filter_date_time.replace(hour=23, minute=59, second=59, microsecond=999999)
-
-        stats = utils.get_stats(prod_sessions, day_start_time, day_end_time)
+        stats = utils.get_stats(prod_sessions, start_time, end_time)
         if stats != None:
             for key in resp.keys():
                 try:
@@ -314,9 +313,7 @@ class Metric(viewsets.ViewSet):
     
     @action(detail=False, url_path="key-stats")
     def key_stats(self, request):
-        query_params = DetailFilterQuerySerializer(data=request.query_params)
-        query_params.is_valid(raise_exception=True)
-        filter_date_time = timezone.localtime(query_params.validated_data['filterDateTime'])
+        start_time, end_time, order_id, style_id, line_id = utils.get_filter_values_from_query_params(request.query_params)
 
         headings = [
             "line", "buyer", "style", "target", "production", "rtt", "rtt_variance",
@@ -326,12 +323,11 @@ class Metric(viewsets.ViewSet):
         ]
         table_data = []
 
-        prod_sessions, _, _, _, _ = utils.get_prod_sessions_and_timings(filter_date_time)
-        day_start_time = filter_date_time.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end_time = filter_date_time.replace(hour=23, minute=59, second=59, microsecond=999999)
+        prod_sessions = utils.get_prod_sessions_for_time_range(start_time, end_time)
+        prod_sessions = utils.apply_filters_on_prod_sessions(prod_sessions, order_id, style_id, line_id)
 
         for prod_session in prod_sessions:
-            session_key_stats = utils.get_stats([prod_session], day_start_time, day_end_time)
+            session_key_stats = utils.get_stats([prod_session], start_time, end_time)
             table_row = []
             for heading in headings:
                 try:
@@ -345,7 +341,7 @@ class Metric(viewsets.ViewSet):
     def hourly_stats(self, request, pk=None):
         query_params = DetailFilterQuerySerializer(data=request.query_params)
         query_params.is_valid(raise_exception=True)
-        filter_date_time = timezone.localtime(query_params.validated_data['filterDateTime'])
+        filter_date_time = timezone.localtime(query_params.validated_data['endDateTime'])
 
         headings = [
             "hour", "production", "target", "target_variance", "dhu",
@@ -382,7 +378,7 @@ class Metric(viewsets.ViewSet):
     def hourly_production(self, request, pk=None):
         query_params = DetailFilterQuerySerializer(data=request.query_params)
         query_params.is_valid(raise_exception=True)
-        filter_date_time = timezone.localtime(query_params.validated_data['filterDateTime'])
+        filter_date_time = timezone.localtime(query_params.validated_data['endDateTime'])
 
         headings = [""]
         table_data = []
@@ -418,27 +414,27 @@ class Metric(viewsets.ViewSet):
 
     @action(detail=False, url_path="frequent-defects")
     def frequent_defects(self, request):
-        query_params = DetailFilterQuerySerializer(data=request.query_params)
-        query_params.is_valid(raise_exception=True)
-        filter_date_time = timezone.localtime(query_params.validated_data['filterDateTime'])
+        start_time, end_time, order_id, style_id, line_id = utils.get_filter_values_from_query_params(request.query_params)
 
-        day_start_time = filter_date_time.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end_time = filter_date_time.replace(hour=23, minute=59, second=59, microsecond=999999)
-        defects = Defect.objects\
-            .filter(qcinput__datetime__gte=day_start_time,qcinput__datetime__lte=day_end_time)\
-            .annotate(
-                defect_freq=Coalesce(Sum('qcinput__quantity'),0),
-                affected_lines=Concat(
-                    Cast(
-                        'qcinput__production_session__line__number',
-                        output_field=CharField(),
-                    ),
-                    Value(', '),
+        defects = Defect.objects.filter(qcinput__datetime__gte=start_time,qcinput__datetime__lte=end_time)
+        defects = utils.apply_filters_on_defects(defects, order_id, style_id, line_id)
+
+        defects = defects.annotate(
+            defect_freq=Coalesce(Sum('qcinput__quantity'),0),
+        )
+        defects = defects.annotate(
+            affected_lines=Concat(
+                Cast(
+                    'qcinput__production_session__line__number',
+                    output_field=CharField(),
                 ),
-            )
+                Value(', '),
+            ),
+        )
         
         defects_data = {}
         for defect in defects:
+            print(defect)
             try:
                 d_data = defects_data[defect.id]
                 # Add data if defect already added to dict
