@@ -147,7 +147,8 @@ def get_filter_values_from_query_params(query_params):
     order = query_params.validated_data['order']
     style = query_params.validated_data['style']
     line = query_params.validated_data['line']
-    return start_time, end_time, order, style, line
+    affectMetricsByTime = query_params.validated_data['affectMetricsByTime']
+    return start_time, end_time, order, style, line, affectMetricsByTime
 
 
 import os
@@ -180,23 +181,59 @@ def get_prod_sessions_timings(prod_sessions):
 
     return prod_start_time, prod_duration
 
-def apply_filters_on_prod_sessions(prod_sessions_filter, order_id, style_id, line_id):
-    if order_id != None:
-        prod_sessions_filter = prod_sessions_filter.filter(style__order__id=order_id)
-    if style_id != None:
-        prod_sessions_filter = prod_sessions_filter.filter(style__id=style_id)
-    if line_id != None:
-        prod_sessions_filter = prod_sessions_filter.filter(line__id=line_id)
-    return prod_sessions_filter
+def get_filtered_prod_sessions(start_time, end_time, order_id, style_id, line_id):
+    prod_sessions = get_prod_sessions_for_time_range(start_time, end_time)
+    prod_sessions = apply_filters_on_prod_sessions(prod_sessions, order_id, style_id, line_id)
+    return prod_sessions
+
+def apply_filters_on_prod_sessions(prod_sessions, order_id, style_id, line_id):
+    if order_id is not None:
+        prod_sessions = prod_sessions.filter(style__order__id=order_id)
+    if style_id is not None:
+        prod_sessions = prod_sessions.filter(style__id=style_id)
+    if line_id is not None:
+        prod_sessions = prod_sessions.filter(line__id=line_id)
+    return prod_sessions
 
 def apply_filters_on_defects(defects_filter, order_id, style_id, line_id):
-    if order_id != None:
+    if order_id is not None:
         defects_filter = defects_filter.filter(qcinput__production_session__style__order__id=order_id)
-    if style_id != None:
+    if style_id is not None:
         defects_filter = defects_filter.filter(qcinput__production_session__style__id=style_id)
-    if line_id != None:
+    if line_id is not None:
         defects_filter = defects_filter.filter(qcinput__production_session__id=line_id)
     return defects_filter
+
+def get_filtered_qc_inputs(start_time, end_time, order_id, style_id, line_id):
+    if start_time is not None and end_time is not None:
+        qc_inputs = QcInput.objects.filter(datetime__gte=start_time, datetime__lte=end_time)
+    else:
+        qc_inputs = QcInput.objects.filter()
+    qc_inputs = apply_filters_on_qc_inputs(qc_inputs, order_id, style_id, line_id)
+    return qc_inputs
+
+def apply_filters_on_qc_inputs(qc_inputs, order_id, style_id, line_id):
+    if order_id is not None:
+        qc_inputs = qc_inputs.filter(production_session__style__order__id=order_id)
+    if style_id is not None:
+        qc_inputs = qc_inputs.filter(production_session__style__id=style_id)
+    if line_id is not None:
+        qc_inputs = qc_inputs.filter(production_session__line__id=line_id)
+    return qc_inputs
+
+def get_production_target_for_order(order, start_time, end_time, style_id, line_id):
+    prod_sessions = get_filtered_prod_sessions(start_time, end_time, order.id, style_id, line_id)
+    target = 0
+    for session in prod_sessions:
+        target += session.target
+    return target
+
+def get_production_target_for_style(style, start_time, end_time, order_id, line_id):
+    prod_sessions = get_filtered_prod_sessions(start_time, end_time, order_id, style.id, line_id)
+    target = 0
+    for session in prod_sessions:
+        target += session.target
+    return target
 
 def get_prod_sessions_and_timings(day):
     day = timezone.localtime(day)

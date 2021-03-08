@@ -13,3 +13,4 @@ class DetailFilterQuerySerializer(serializers.Serializer):
     order = serializers.IntegerField(default=None, required=False)
     style = serializers.IntegerField(default=None, required=False)
     line = serializers.IntegerField(default=None, required=False)
+    affectMetricsByTime = serializers.BooleanField(default=False, required=False)
