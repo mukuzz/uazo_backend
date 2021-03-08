@@ -7,7 +7,7 @@ from mes.serializers.query_serializers import TimeSeriesRequestQuerySerializer, 
 from django.utils import timezone
 from datetime import timedelta
 import datetime
-from django.db.models import Sum, Count, Q, Value, CharField
+from django.db.models import Sum, Count, Q, Value, CharField, F
 from django.db.models.functions import Coalesce, Concat, Cast
 import math
 from . import utils
@@ -416,43 +416,36 @@ class Metric(viewsets.ViewSet):
     def frequent_defects(self, request):
         start_time, end_time, order_id, style_id, line_id = utils.get_filter_values_from_query_params(request.query_params)
 
-        defects = Defect.objects.filter(qcinput__datetime__gte=start_time,qcinput__datetime__lte=end_time)
-        defects = utils.apply_filters_on_defects(defects, order_id, style_id, line_id)
+        qc_inputs = QcInput.objects.filter(datetime__gt=start_time, datetime__lt=end_time)
+        if order_id != None:
+            qc_inputs = qc_inputs.filter(production_session__style__order__id=order_id)
+        if style_id != None:
+            qc_inputs = qc_inputs.filter(production_session__style__id=style_id)
+        if line_id != None:
+            qc_inputs = qc_inputs.filter(production_session__line__id=line_id)
+        qc_inputs = qc_inputs.filter(input_type=QcInput.DEFECTIVE)
+        qc_inputs = qc_inputs.annotate(affected_line=F('production_session__line__number'))
 
-        defects = defects.annotate(
-            defect_freq=Coalesce(Sum('qcinput__quantity'),0),
-        )
-        defects = defects.annotate(
-            affected_lines=Concat(
-                Cast(
-                    'qcinput__production_session__line__number',
-                    output_field=CharField(),
-                ),
-                Value(', '),
-            ),
-        )
-        
         defects_data = {}
-        for defect in defects:
-            print(defect)
-            try:
-                d_data = defects_data[defect.id]
-                # Add data if defect already added to dict
-                d_data["freq"] += defect.defect_freq
-                d_data["affected_lines"] += defect.affected_lines
-            except KeyError:
-                defects_data[defect.id] = {
-                    "id": defect.id,
-                    "operation": defect.operation,
-                    "defect": defect.defect,
-                    "freq": defect.defect_freq,
-                    "affected_lines": defect.affected_lines
-                }
-
+        for qc_input in qc_inputs:
+            for defect in qc_input.defects.all():
+                try:
+                    d_data = defects_data[defect.id]
+                    # Add data if defect already added to dict
+                    d_data["freq"] += qc_input.quantity
+                    d_data["affected_lines"].add(str(qc_input.affected_line)),
+                except KeyError:
+                    defects_data[defect.id] = {
+                        "id": defect.id,
+                        "operation": defect.operation,
+                        "defect": defect.defect,
+                        "freq": qc_input.quantity,
+                        "affected_lines": set([str(qc_input.affected_line)]),
+                    }
+                    
         defects_data_list = []
         for key, value in defects_data.items():
-            # Remove the last two characters [',',' ']
-            value["affected_lines"] = value["affected_lines"][:-2]
+            value["affected_lines"] = ", ".join(list(value["affected_lines"]))
             defects_data_list.append(value)
 
         sorted_defects_data_list = sorted(defects_data_list, key=lambda x: x["freq"], reverse=True)
