@@ -235,7 +235,7 @@ class Metric(viewsets.ViewSet):
                 adjusted_date_time = production_session.end_time
             manpower += production_session.operators + production_session.helpers
             elapsed_seconds += (adjusted_date_time - production_session.start_time).total_seconds()
-            duration_seconds = (production_session.end_time - production_session.start_time).total_seconds()
+            duration_seconds += (production_session.end_time - production_session.start_time).total_seconds()
             res = production_session.qcinput_set \
                 .filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED)) \
                 .aggregate(Sum('quantity'))
@@ -324,6 +324,7 @@ class Metric(viewsets.ViewSet):
         table_data = []
 
         prod_sessions = utils.get_filtered_prod_sessions(start_time, end_time, order_id, style_id, line_id)
+        prod_sessions = prod_sessions.order_by('start_time')
 
         for prod_session in prod_sessions:
             session_key_stats = utils.get_stats([prod_session], start_time, end_time)
