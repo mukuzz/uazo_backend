@@ -225,16 +225,16 @@ class Metric(viewsets.ViewSet):
         start_time, end_time, order_id, style_id, line_id, _ = utils.get_filter_values_from_query_params(request.query_params)
         prod_sessions = utils.get_filtered_prod_sessions(start_time, end_time, order_id, style_id, line_id)
 
-        filter_date_time = end_time
+        current_time = timezone.now()
         manpower, elapsed_seconds, duration_seconds, sam, output, target = 0, 0, 0, 0, 0, 0
         for production_session in prod_sessions:
-            adjusted_filter_date_time = filter_date_time
-            if filter_date_time < production_session.start_time:
-                adjusted_filter_date_time = production_session.start_time
-            elif filter_date_time > production_session.end_time:
-                adjusted_filter_date_time = production_session.end_time
+            adjusted_date_time = current_time
+            if current_time < production_session.start_time:
+                adjusted_date_time = production_session.start_time
+            elif current_time > production_session.end_time:
+                adjusted_date_time = production_session.end_time
             manpower += production_session.operators + production_session.helpers
-            elapsed_seconds += (adjusted_filter_date_time - production_session.start_time).total_seconds()
+            elapsed_seconds += (adjusted_date_time - production_session.start_time).total_seconds()
             duration_seconds = (production_session.end_time - production_session.start_time).total_seconds()
             res = production_session.qcinput_set \
                 .filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED)) \
