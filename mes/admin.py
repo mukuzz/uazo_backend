@@ -2,8 +2,11 @@ from django.contrib import admin
 import nested_admin
 from mes.models import ProductionOrder, Style, ProductionSession, QcInput, DeletedQcInput, Defect, SizeQuantity, Line, LineLocation, Buyer, StyleCategory, QcAppState
 
-admin.site.site_header = "Magnolia"
-admin.site.site_title = "Magnolia"
+import os
+FACTORY_NAME = os.getenv('FACTORY_NAME', 'Uazo')
+
+admin.site.site_header = FACTORY_NAME
+admin.site.site_title = FACTORY_NAME
 admin.site.index_title = "Uazo Admin"
 admin.site.site_url = None
 
