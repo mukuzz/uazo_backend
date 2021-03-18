@@ -1,6 +1,6 @@
 from django.contrib import admin
 import nested_admin
-from mes.models import ProductionOrder, Style, ProductionSession, QcInput, DeletedQcInput, Defect, SizeQuantity, Line, LineLocation, Buyer, StyleCategory
+from mes.models import ProductionOrder, Style, ProductionSession, QcInput, DeletedQcInput, Defect, SizeQuantity, Line, LineLocation, Buyer, StyleCategory, QcAppState
 
 admin.site.site_header = "Magnolia"
 admin.site.site_title = "Magnolia"
@@ -70,6 +70,23 @@ class ProductionSessionAdmin(admin.ModelAdmin):
     save_as_continue = False
 
 admin.site.register(ProductionSession, ProductionSessionAdmin)
+
+
+class QcAppStateAdmin(admin.ModelAdmin):
+    date_hierarchy = 'datetime'
+    list_display = ['datetime', 'production_session', 'signed_in_user']
+    list_filter = ['production_session', 'signed_in_user']
+
+    def has_change_permission(self, request, obj=None):
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def has_add_permission(self, request):
+        return False
+
+admin.site.register(QcAppState, QcAppStateAdmin)
 
 
 class QcInputAdmin(admin.ModelAdmin):

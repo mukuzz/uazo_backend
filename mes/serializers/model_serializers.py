@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from mes.models import ProductionOrder, Style, ProductionSession, QcInput, Defect, SizeQuantity, Line, Buyer, StyleCategory
+from mes.models import ProductionOrder, Style, ProductionSession, QcInput, Defect, SizeQuantity, Line, Buyer, StyleCategory, QcAppState
 
 
 class BuyerSerializer(serializers.ModelSerializer):
@@ -76,3 +76,9 @@ class QcInputSerializer(serializers.ModelSerializer):
             for defect_id in defect_ids:
                 qc_input.defects.add(defect_id)
         return qc_input
+
+
+class QcAppStateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = QcAppState
+        fields = '__all__'

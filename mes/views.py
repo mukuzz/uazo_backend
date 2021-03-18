@@ -83,13 +83,21 @@ class LineViewSet(viewsets.ModelViewSet):
     serializer_class = LineSerializer
 
 
+class QcAppStateViewSet(viewsets.ModelViewSet):
+    queryset = QcAppState.objects.all()
+    serializer_class = QcAppStateSerializer
+
+
 class Metric(viewsets.ViewSet):
 
     @action(detail=False, url_path="orders-progress")
     def orders_progress(self, request):
         start_time, end_time, order_id, style_id, line_id, affectMetricsByTime = utils.get_filter_values_from_query_params(request.query_params)
 
-        orders_filter = ProductionOrder.objects.filter(due_date_time__gte=start_time)
+        if affectMetricsByTime:
+            orders_filter = ProductionOrder.objects.filter(due_date_time__gte=start_time)
+        else:
+            orders_filter = ProductionOrder.objects.filter(completed=False)
         if order_id != None:
             orders_filter = orders_filter.filter(id=order_id)
         data = []
@@ -102,18 +110,23 @@ class Metric(viewsets.ViewSet):
             qc_inputs = qc_inputs.filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))
             for qc_input in qc_inputs:
                 produced += qc_input.quantity
+            prod_order_quantity = order.quantity()
             if affectMetricsByTime:
                 target = utils.get_production_target_for_order(order, start_time, end_time, style_id, line_id)
             else:
-                target = order.quantity()
-            data.append({"label": order.buyer.buyer, "produced": produced, "target": target})
+                target = prod_order_quantity
+            target = min(prod_order_quantity, target)
+            data.append({"label": order.order_number, "produced": produced, "target": target})
         return Response({"data": data})
     
     @action(detail=False, url_path="styles-progress")
     def styles_progress(self, request):
         start_time, end_time, order_id, style_id, line_id, affectMetricsByTime = utils.get_filter_values_from_query_params(request.query_params)
 
-        styles_filter = Style.objects.filter(order__due_date_time__gte=start_time)
+        if affectMetricsByTime:
+            styles_filter = Style.objects.filter(order__due_date_time__gte=start_time)
+        else:
+            styles_filter = Style.objects.filter(order__completed=False)
         if style_id != None:
             styles_filter = styles_filter.filter(id=style_id)
         if order_id != None:
@@ -128,10 +141,12 @@ class Metric(viewsets.ViewSet):
             qc_inputs = qc_inputs.filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))
             for qc_input in qc_inputs:
                 produced += qc_input.quantity
+            style_quantity = style.quantity()
             if affectMetricsByTime:
                 target = utils.get_production_target_for_style(style, start_time, end_time, order_id, line_id)
             else:
-                target = style.quantity()
+                target = style_quantity
+            target = min(style_quantity, target)
             data.append({
                 "label": f'{style.number}',
                 "produced": produced,
