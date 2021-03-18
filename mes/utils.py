@@ -127,7 +127,7 @@ def get_stats(prod_sessions, start_time, end_time):
     # Calcaulate Input type rates
     if total_pieces_processed > 0:
         stats["ftt_percentage"] = f'{round(ftt * 100 / total_pieces_processed, 2)}%'
-        stats["reject_percentage"] = f'{round(rejected * 100 / total_pieces_processed, 2)}%'
+        stats["rejected_percentage"] = f'{round(rejected * 100 / total_pieces_processed, 2)}%'
         stats["defective_percentage"] = f'{round(defective * 100 / total_pieces_processed, 2)}%'
         dhu = defects * 100 / total_pieces_processed
         stats["dhu"] = round(dhu, 2)

@@ -13,7 +13,7 @@ class QcInputTemplate(models.Model):
     DEFECTIVE = 'defective'
     QC_INPUT_TYPES = (
         (FTT, 'pass'),
-        (REJECTED, 'alter'),
+        (REJECTED, 'rejected'),
         (RECTIFIED,'rectified'),
         (DEFECTIVE, 'defective')
     )
