@@ -307,14 +307,15 @@ class Metric(viewsets.ViewSet):
             helpers += value
         return Response({"data": helpers})
 
-    @action(detail=False, url_path="qc-actions")
-    def qc_actions(self, request):
+    @action(detail=False, url_path="quality-report")
+    def quality_report(self, request):
         start_time, end_time, order_id, style_id, line_id, _ = utils.get_filter_values_from_query_params(request.query_params)
         prod_sessions = utils.get_filtered_prod_sessions(start_time, end_time, order_id, style_id, line_id)
         
         resp = {
             "ftt": 0, "defective": 0, "rectified": 0, "rejected": 0, "ftt_percentage": "0.00%",
             "defective_percentage": "0.00%", "rectified_percentage": "0.00%", "rejected_percentage": "0.00%",
+            "dhu": 0,
         }
 
         stats = utils.get_stats(prod_sessions, start_time, end_time)
