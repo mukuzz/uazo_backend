@@ -199,7 +199,8 @@ class Metric(viewsets.ViewSet):
         query_params.is_valid(raise_exception=True)
         start = query_params.validated_data['start']
         end = query_params.validated_data['end']
-        _, prod_start_time, _, _, _ = utils.get_prod_sessions_and_timings(start)
+        prod_sessions = utils.get_prod_sessions_for_time_range(start, end)
+        prod_start_time, _ = utils.get_prod_sessions_timings(prod_sessions)
 
         if end - start > timedelta(days=90):
             raise serializers.ValidationError({"date range should be less than or equal to 90 days"})
@@ -240,36 +241,17 @@ class Metric(viewsets.ViewSet):
         start_time, end_time, order_id, style_id, line_id, _ = utils.get_filter_values_from_query_params(request.query_params)
         prod_sessions = utils.get_filtered_prod_sessions(start_time, end_time, order_id, style_id, line_id)
 
-        current_time = timezone.now()
-        manpower, elapsed_seconds, duration_seconds, sam, output, target = 0, 0, 0, 0, 0, 0
-        for production_session in prod_sessions:
-            adjusted_date_time = current_time
-            if current_time < production_session.start_time:
-                adjusted_date_time = production_session.start_time
-            elif current_time > production_session.end_time:
-                adjusted_date_time = production_session.end_time
-            manpower += production_session.operators + production_session.helpers
-            elapsed_seconds += (adjusted_date_time - production_session.start_time).total_seconds()
-            duration_seconds += (production_session.end_time - production_session.start_time).total_seconds()
-            res = production_session.qcinput_set \
-                .filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED)) \
-                .aggregate(Sum('quantity'))
-            if res['quantity__sum'] != None:
-                output += res['quantity__sum']
-            sam += production_session.style.sam
-            target += production_session.target
-        
-        required_efficiency, factory_efficiency = 0, 0
+        stats = utils.get_stats(prod_sessions, start_time, end_time)
+        resp = {}
         try:
-            factory_efficiency = output * sam * 100 / (manpower * elapsed_seconds / 60)
-        except ZeroDivisionError:
-            factory_efficiency = 0
+            resp["target"] = stats["target_efficiency"]
+        except KeyError:
+            resp["target"] = "0.00%"
         try:
-            rtt = target * (elapsed_seconds / duration_seconds)
-            required_efficiency = rtt * sam * 100 / (manpower * elapsed_seconds / 60)
-        except ZeroDivisionError:
-            required_efficiency = 0
-        return Response({"target": required_efficiency, "actual": factory_efficiency})
+            resp["actual"] = stats["efficiency"]
+        except KeyError:
+            resp["actual"] = "0.00%"
+        return Response(resp)
 
     @action(detail=False, url_path="active-operators")
     def active_operators(self, request):
@@ -332,8 +314,8 @@ class Metric(viewsets.ViewSet):
         start_time, end_time, order_id, style_id, line_id, _ = utils.get_filter_values_from_query_params(request.query_params)
 
         headings = [
-            "line", "buyer", "style", "target", "production", "rtt", "rtt_variance",
-            "projected", "dhu", "efficiency",
+            "line", "buyer", "style", "production", "target", "target_variance", "rtt",
+            "projected", "dhu", "efficiency", "productivity",
             # "defective", "rectified" ,"rejected",
             "operators", "helpers", "shift"
         ]
@@ -363,16 +345,25 @@ class Metric(viewsets.ViewSet):
         ]
         table_data = []
 
-        prod_sessions, prod_start_time, prod_duration, break_start_time, break_duration = utils.get_prod_sessions_and_timings(end_time)
+        prod_sessions = utils.get_prod_sessions_for_time_range(start_time, end_time)
         prod_sessions = utils.apply_filters_on_prod_sessions(prod_sessions, order_id, style_id, line_id)
+        prod_start_time, prod_end_time = utils.get_prod_sessions_timings(prod_sessions)
+        prod_breaks = utils.get_prod_sessions_breaks(prod_sessions)
 
         hour = 0
         while True:
             time_filter_start = prod_start_time + timedelta(hours=1*hour)
             time_filter_end = time_filter_start + timedelta(hours=1)
-            if time_filter_end > break_start_time:
-                time_filter_start += break_duration
-                time_filter_end += break_duration
+            hour += 1
+            time_filter_start, time_filter_end = utils.adjust_timing_for_breaks(time_filter_start,time_filter_end,prod_breaks)
+            # Skip this duration as it's completely inside a break timing
+            if time_filter_start == time_filter_end:
+                continue
+            # End loop when all hours have been accounted for
+            if time_filter_end >= prod_end_time:
+                time_filter_end = prod_end_time
+            if time_filter_start >= time_filter_end:
+                break
             stats = utils.get_stats(prod_sessions, time_filter_start, time_filter_end)
             if stats != None:
                 table_row = [f'{time_filter_start.strftime("%I:%M %p")} - {time_filter_end.strftime("%I:%M %p")}']
@@ -382,10 +373,6 @@ class Metric(viewsets.ViewSet):
                     except KeyError:
                         table_row.append('-')
                 table_data.append(table_row)
-            
-            hour += 1
-            if time_filter_end >= prod_start_time + prod_duration:
-                break
         
         return Response({"headings": headings,"tableData":table_data})
 
@@ -393,11 +380,13 @@ class Metric(viewsets.ViewSet):
     def hourly_production(self, request, pk=None):
         start_time, end_time, order_id, style_id, line_id, _ = utils.get_filter_values_from_query_params(request.query_params)
 
-        prod_sessions, prod_start_time, prod_duration, break_start_time, break_duration = utils.get_prod_sessions_and_timings(end_time)
-        prod_sessions = utils.apply_filters_on_prod_sessions(prod_sessions, order_id, style_id, line_id)
-        
         headings = [""]
         table_data = []
+
+        prod_sessions = utils.get_prod_sessions_for_time_range(start_time, end_time)
+        prod_sessions = utils.apply_filters_on_prod_sessions(prod_sessions, order_id, style_id, line_id)
+        prod_start_time, prod_end_time = utils.get_prod_sessions_timings(prod_sessions)
+        prod_breaks = utils.get_prod_sessions_breaks(prod_sessions)
 
         if line_id is not None:
             lines = Line.objects.filter(id=line_id)
@@ -410,9 +399,16 @@ class Metric(viewsets.ViewSet):
         while True:
             time_filter_start = prod_start_time + timedelta(hours=1*hour)
             time_filter_end = time_filter_start + timedelta(hours=1)
-            if time_filter_end > break_start_time:
-                time_filter_start += break_duration
-                time_filter_end += break_duration
+            hour += 1
+            time_filter_start, time_filter_end = utils.adjust_timing_for_breaks(time_filter_start,time_filter_end,prod_breaks)
+            # Skip this duration as it's completely inside a break timing
+            if time_filter_start == time_filter_end:
+                continue
+            # End loop when all hours have been accounted for
+            if time_filter_end >= prod_end_time:
+                time_filter_end = prod_end_time
+            if time_filter_start >= time_filter_end:
+                break
             table_row = [f'{time_filter_start.strftime("%I:%M %p")} - {time_filter_end.strftime("%I:%M %p")}']
             for line in lines:
                 production_sessions = prod_sessions.filter(line=line)
@@ -423,10 +419,6 @@ class Metric(viewsets.ViewSet):
                     except KeyError:
                         table_row.append('-')
             table_data.append(table_row)
-
-            hour += 1
-            if time_filter_end >= prod_start_time + prod_duration:
-                break
         
         return Response({"headings": headings,"tableData":table_data})
 

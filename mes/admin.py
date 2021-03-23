@@ -1,6 +1,6 @@
 from django.contrib import admin
 import nested_admin
-from mes.models import ProductionOrder, Style, ProductionSession, QcInput, DeletedQcInput, Defect, SizeQuantity, Line, LineLocation, Buyer, StyleCategory, QcAppState
+from mes.models import ProductionOrder, Style, ProductionSession, ProductionSessionBreak, QcInput, DeletedQcInput, Defect, SizeQuantity, Line, LineLocation, Buyer, StyleCategory, QcAppState
 
 import os
 FACTORY_NAME = os.getenv('FACTORY_NAME', 'Uazo')
@@ -65,10 +65,19 @@ class StyleCategoryAdmin(admin.ModelAdmin):
 admin.site.register(StyleCategory, StyleCategoryAdmin)
 
 
+
+class ProductionSessionBreakAdmin(admin.ModelAdmin):
+    list_display = ['start_time', 'end_time']
+    search_fields = ['start_time', 'end_time']
+
+admin.site.register(ProductionSessionBreak, ProductionSessionBreakAdmin)
+
+
 class ProductionSessionAdmin(admin.ModelAdmin):
     date_hierarchy = 'start_time'
     list_display = ['start_time', 'end_time', 'style', 'line', 'target']
     list_filter = ['start_time', 'end_time', 'style', 'line']
+    autocomplete_fields = ['breaks']
     save_as = True
     save_as_continue = False
 

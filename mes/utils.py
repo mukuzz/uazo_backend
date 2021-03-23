@@ -1,6 +1,7 @@
 from .models import QcInput
 import math
 from django.utils import timezone
+import datetime
 
 def get_stats(prod_sessions, start_time, end_time):
     if start_time > end_time:
@@ -63,19 +64,30 @@ def get_stats(prod_sessions, start_time, end_time):
         if adjusted_start_time > adjusted_end_time:
             continue
         
-        target += prod_session.target * ((adjusted_end_time - adjusted_start_time)/(prod_session.end_time - prod_session.start_time))
+        breaks_duration = get_breaks_duration([prod_session]).total_seconds()
+        prod_session_duration = (prod_session.end_time - prod_session.start_time).total_seconds()
+        # Adjust production duration for breaks
+        production_duration = prod_session_duration - breaks_duration
+        computation_time_range_duration = (adjusted_end_time - adjusted_start_time).total_seconds()
+        if computation_time_range_duration > production_duration:
+            computation_time_range_duration = production_duration
+        production_duration_fraction = computation_time_range_duration / production_duration
+        target += prod_session.target * production_duration_fraction
         
         current_time = timezone.now()
-        duration_seconds += (adjusted_end_time - adjusted_start_time).total_seconds()
+        duration_seconds += computation_time_range_duration
         if current_time > adjusted_end_time:
-            elapsed_seconds += (adjusted_end_time - adjusted_start_time).total_seconds()
+            elapsed_seconds += computation_time_range_duration
             remaining_seconds += 0
         elif current_time < adjusted_start_time:
             elapsed_seconds += 0
-            remaining_seconds += (adjusted_end_time - adjusted_start_time).total_seconds()
+            remaining_seconds += computation_time_range_duration
         else:
-            elapsed_seconds += (current_time - adjusted_start_time).total_seconds()
-            remaining_seconds = (adjusted_end_time - current_time).total_seconds()
+            elapsed_seconds_for_this_session = (current_time - adjusted_start_time).total_seconds()
+            if elapsed_seconds_for_this_session > computation_time_range_duration:
+                elapsed_seconds_for_this_session = computation_time_range_duration
+            elapsed_seconds += elapsed_seconds_for_this_session
+            remaining_seconds += (adjusted_end_time - current_time).total_seconds()
     
     output = ftt + rectified
     manpower = operators + helpers
@@ -106,7 +118,7 @@ def get_stats(prod_sessions, start_time, end_time):
             stats["target_efficiency_variance"] = f'{round(target_efficiency - efficiency, 2)}%'
     
     # Calculate RTT Stats
-    if duration_seconds > 0:
+    if duration_seconds > 0 and remaining_seconds > 0:
         rtt = target * (elapsed_seconds / duration_seconds)
         stats["rtt"] = round(rtt)
         stats["rtt_variance"] = round(rtt) - output
@@ -150,15 +162,8 @@ def get_filter_values_from_query_params(query_params):
     affectMetricsByTime = query_params.validated_data['affectMetricsByTime']
     return start_time, end_time, order, style, line, affectMetricsByTime
 
-
-import os
-from .models import ProductionSession
-from datetime import timedelta
-BREAK_START_HOUR = int(os.environ['BREAK_START_HOUR'])
-BREAK_START_MINUTE = int(os.environ['BREAK_START_MINUTE'])
-BREAK_MINUTES = int(os.environ['BREAK_MINUTES'])
-
 def get_prod_sessions_for_time_range(start_time, end_time):
+    from .models import ProductionSession
     return ProductionSession.objects.filter(
         start_time__gte=start_time,
         end_time__lte=end_time,
@@ -169,7 +174,6 @@ def get_prod_sessions_timings(prod_sessions):
     for prod_session in prod_sessions:
         session_start_times.append(timezone.localtime(prod_session.start_time))
         session_end_times.append(timezone.localtime(prod_session.end_time))
-    
     if len(session_start_times) > 0 and len(session_end_times) > 0:
         prod_start_time = min(session_start_times)
         prod_end_time = max(session_end_times)
@@ -177,9 +181,54 @@ def get_prod_sessions_timings(prod_sessions):
         day = timezone.localtime(timezone.now())
         prod_start_time = day.replace(hour=8, minute=0, second=0, microsecond=0)
         prod_end_time =  day.replace(hour=16, minute=0, second=0, microsecond=0)
-    prod_duration = prod_end_time - prod_start_time
+    return prod_start_time, prod_end_time
 
-    return prod_start_time, prod_duration
+def get_prod_sessions_breaks(prod_sessions):
+    breaks = set()
+    for prod_session in prod_sessions:
+        for prod_session_break in prod_session.breaks.all():
+            local_date_time = timezone.localtime(prod_session.start_time)
+            prod_session_break.start_time = datetime.datetime.combine(
+                local_date_time.date(),
+                prod_session_break.start_time,
+                tzinfo=local_date_time.tzinfo
+            )
+            prod_session_break.end_time = datetime.datetime.combine(
+                local_date_time.date(),
+                prod_session_break.end_time,
+                tzinfo=local_date_time.tzinfo
+            )
+            breaks.add(prod_session_break)
+    return list(breaks)
+
+def get_breaks_duration(prod_sessions):
+    prod_breaks = get_prod_sessions_breaks(prod_sessions)
+    duration = datetime.timedelta(seconds=0)
+    for prod_break in prod_breaks:
+        duration += prod_break.end_time - prod_break.start_time
+    return duration
+
+# def adjust_timing_for_breaks(start_time, end_time, prod_breaks):
+#     from datetime import timedelta
+#     for prod_session_break in prod_breaks:
+#         if start_time >= prod_session_break.start_time:
+#             time_diff = prod_session_break.end_time - start_time
+#             if time_diff < datetime.timedelta(seconds=0):
+#                 time_diff = prod_session_break.end_time - prod_session_break.start_time
+#             start_time += time_diff
+#             end_time += time_diff
+#     return start_time, end_time
+
+def adjust_timing_for_breaks(start_time, end_time, prod_breaks):
+    from datetime import timedelta
+    for prod_session_break in prod_breaks:
+        if start_time < prod_session_break.start_time and end_time >= prod_session_break.start_time:
+            end_time = prod_session_break.start_time
+        elif start_time >= prod_session_break.start_time and end_time <= prod_session_break.end_time:
+            start_time = end_time
+        elif start_time <= prod_session_break.end_time and end_time > prod_session_break.end_time:
+            start_time = prod_session_break.end_time
+    return start_time, end_time
 
 def get_filtered_prod_sessions(start_time, end_time, order_id, style_id, line_id):
     prod_sessions = get_prod_sessions_for_time_range(start_time, end_time)
@@ -234,34 +283,3 @@ def get_production_target_for_style(style, start_time, end_time, order_id, line_
     for session in prod_sessions:
         target += session.target
     return target
-
-def get_prod_sessions_and_timings(day):
-    day = timezone.localtime(day)
-    day_start_time = day.replace(hour=0, minute=0, second=0, microsecond=0)
-    day_end_time = day.replace(hour=23, minute=59, second=59, microsecond=999999)
-
-    # Multi day production sessions will not be selected with this method
-    day_production_sessions = ProductionSession.objects.filter(
-        start_time__gte=day_start_time,
-        end_time__lte=day_end_time,
-    )
-    session_start_times, session_end_times = [], []
-    for prod_session in day_production_sessions:
-        session_start_times.append(timezone.localtime(prod_session.start_time))
-        session_end_times.append(timezone.localtime(prod_session.end_time))
-    
-    if len(session_start_times) > 0 and len(session_end_times) > 0:
-        production_start_time = min(session_start_times)
-        production_end_time = max(session_end_times)
-    else:
-        production_start_time = day.replace(hour=8, minute=0, second=0, microsecond=0)
-        production_end_time =  day.replace(hour=16, minute=0, second=0, microsecond=0)
-    production_duration = production_end_time - production_start_time
-
-    break_start_time = day.replace(hour=BREAK_START_HOUR, minute=BREAK_START_MINUTE, second=0, microsecond=0)
-    if break_start_time > production_start_time and break_start_time < production_end_time:
-        break_duration = timedelta(minutes=BREAK_MINUTES)
-    else:
-        break_duration = timedelta(minutes=0)
-
-    return day_production_sessions, production_start_time, production_duration, break_start_time, break_duration

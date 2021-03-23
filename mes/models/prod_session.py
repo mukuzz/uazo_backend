@@ -6,6 +6,17 @@ from django.conf import settings
 from django.core.validators import MinValueValidator
 
 
+def get_current_local_time():
+    return timezone.localtime(timezone.now())
+
+class ProductionSessionBreak(models.Model):
+    start_time = models.TimeField(default=get_current_local_time) # TODO: make it timezone aware
+    end_time = models.TimeField(default=get_current_local_time) # TODO: make it timezone aware
+
+    def __str__(self):
+        return f'{self.start_time.strftime("%I:%M %p")} - {self.end_time.strftime("%I:%M %p")}'
+
+
 class ProductionSession(models.Model):
     style = models.ForeignKey(Style, on_delete=models.PROTECT)
     line = models.ForeignKey(Line, on_delete=models.PROTECT)
@@ -14,6 +25,7 @@ class ProductionSession(models.Model):
     assigned_qc = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True)
     start_time = models.DateTimeField(default=timezone.now)
     end_time = models.DateTimeField(default=timezone.now)
+    breaks = models.ManyToManyField('mes.ProductionSessionBreak', blank=True)
     target = models.PositiveIntegerField()
 
     def __str__(self):
