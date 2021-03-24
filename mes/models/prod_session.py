@@ -13,6 +13,11 @@ class ProductionSessionBreak(models.Model):
     start_time = models.TimeField(default=get_current_local_time) # TODO: make it timezone aware
     end_time = models.TimeField(default=get_current_local_time) # TODO: make it timezone aware
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['start_time', 'end_time'], name='unique_break_timing')
+        ]
+        
     def __str__(self):
         return f'{self.start_time.strftime("%I:%M %p")} - {self.end_time.strftime("%I:%M %p")}'
 

@@ -5,7 +5,6 @@ from mes.models import Defect
 
 class StyleCategory(models.Model):
     category = models.CharField(max_length=256)
-    defects = models.ManyToManyField('mes.Defect', blank=True)
     class Meta: 
         verbose_name = "Style Category"
         verbose_name_plural = "Style Categories"
@@ -20,7 +19,7 @@ class Style(models.Model):
     color = models.CharField(max_length=256)
     name = models.CharField(max_length=256, blank=True)
     sam = models.FloatField(validators=[MinValueValidator(0.001, message="sam should be greater than 0")])
-    defects = models.ManyToManyField('mes.Defect', default=Defect.objects.all)
+    defects = models.ManyToManyField('mes.Defect')
     order = models.ForeignKey('mes.ProductionOrder', on_delete=models.PROTECT)
 
     def __str__(self):

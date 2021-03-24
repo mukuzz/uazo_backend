@@ -73,7 +73,6 @@ admin.site.register(ProductionOrder, ProductionOrderAdmin)
 
 class StyleCategoryAdmin(admin.ModelAdmin):
     list_display = ['category']
-    autocomplete_fields = ['defects']
 
 admin.site.register(StyleCategory, StyleCategoryAdmin)
 
