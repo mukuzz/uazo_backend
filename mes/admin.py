@@ -2,6 +2,8 @@ from django.contrib import admin
 import nested_admin
 from django.forms import ModelForm, ValidationError
 from mes.models import ProductionOrder, Style, ProductionSession, ProductionSessionBreak, QcInput, DeletedQcInput, Defect, SizeQuantity, Line, LineLocation, Buyer, StyleCategory, QcAppState
+from django.conf import settings
+from django.utils import timezone
 
 import os
 FACTORY_NAME = os.getenv('FACTORY_NAME', 'Uazo')
@@ -118,6 +120,25 @@ class ProductionSessionAdmin(admin.ModelAdmin):
     save_as = True
     save_as_continue = False
     form = ProductionSessionAdminForm
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == 'assigned_qc':
+            from django.apps import apps
+            User = apps.get_model(settings.AUTH_USER_MODEL)
+            kwargs['queryset'] = User.objects.filter(groups__name='qc', is_active=True)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+    
+    def has_change_permission(self, request, obj=None):
+        if obj:
+            return timezone.localdate(timezone.now()) <= obj.end_time.date()
+        else:
+            return super().has_change_permission(request, obj)
+    
+    def has_delete_permission(self, request, obj=None):
+        if obj:
+            return timezone.localdate(timezone.now()) <= obj.end_time.date()
+        else:
+            return super().has_delete_permission(request, obj)
 
 admin.site.register(ProductionSession, ProductionSessionAdmin)
 
