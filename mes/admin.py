@@ -1,5 +1,6 @@
 from django.contrib import admin
 import nested_admin
+from django.forms import ModelForm, ValidationError
 from mes.models import ProductionOrder, Style, ProductionSession, ProductionSessionBreak, QcInput, DeletedQcInput, Defect, SizeQuantity, Line, LineLocation, Buyer, StyleCategory, QcAppState
 
 import os
@@ -64,11 +65,19 @@ class StyleCategoryAdmin(admin.ModelAdmin):
 
 admin.site.register(StyleCategory, StyleCategoryAdmin)
 
-
+class ProductionSessionBreakAdminForm(ModelForm):
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data['start_time'] >= cleaned_data['end_time']:
+            validation_error = ValidationError('End time should be after start time')
+            # add_error removes the field data from dict
+            self.add_error('end_time', validation_error)
+        return cleaned_data
 
 class ProductionSessionBreakAdmin(admin.ModelAdmin):
     list_display = ['start_time', 'end_time']
     search_fields = ['start_time', 'end_time']
+    form = ProductionSessionBreakAdminForm
 
     def get_deleted_objects(self, objs, request):
         """
@@ -85,6 +94,22 @@ class ProductionSessionBreakAdmin(admin.ModelAdmin):
 admin.site.register(ProductionSessionBreak, ProductionSessionBreakAdmin)
 
 
+class ProductionSessionAdminForm(ModelForm):
+    def clean(self):
+        cleaned_data = super().clean()
+        start_time = cleaned_data['start_time']
+        end_time = cleaned_data['end_time']
+        if start_time.date() != end_time.date():
+            raise ValidationError('Production session cannot last more than one day')
+        for prod_break in cleaned_data['breaks']:
+            if prod_break.start_time < start_time.time() or prod_break.end_time > end_time.time():
+                raise ValidationError('Break timings should be within production session timings.')
+        if start_time >= end_time:
+            validation_error = ValidationError('End time should be after start time')
+            # add_error removes the field data from dict
+            self.add_error('end_time', validation_error)
+        return cleaned_data
+
 class ProductionSessionAdmin(admin.ModelAdmin):
     date_hierarchy = 'start_time'
     list_display = ['start_time', 'end_time', 'style', 'line', 'target']
@@ -92,6 +117,7 @@ class ProductionSessionAdmin(admin.ModelAdmin):
     autocomplete_fields = ['breaks']
     save_as = True
     save_as_continue = False
+    form = ProductionSessionAdminForm
 
 admin.site.register(ProductionSession, ProductionSessionAdmin)
 

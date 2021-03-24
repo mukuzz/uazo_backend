@@ -1,5 +1,6 @@
 from django.db import models
 from django.core.validators import MinValueValidator
+from mes.models import Defect
 
 
 class StyleCategory(models.Model):
@@ -19,7 +20,7 @@ class Style(models.Model):
     color = models.CharField(max_length=256)
     name = models.CharField(max_length=256, blank=True)
     sam = models.FloatField(validators=[MinValueValidator(0.001, message="sam should be greater than 0")])
-    defects = models.ManyToManyField('mes.Defect')
+    defects = models.ManyToManyField('mes.Defect', default=Defect.objects.all())
     order = models.ForeignKey('mes.ProductionOrder', on_delete=models.PROTECT)
 
     def __str__(self):
