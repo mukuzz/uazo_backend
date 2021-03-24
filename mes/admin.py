@@ -49,6 +49,15 @@ class StyleNestedInline(nested_admin.NestedStackedInline):
     autocomplete_fields = ['defects']
 
 
+class ProductionOrderAdminForm(ModelForm):
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data['receive_date_time'] >= cleaned_data['due_date_time']:
+            validation_error = ValidationError('Due date time should be after receive date time')
+            # add_error removes the field data from dict
+            self.add_error('due_date_time', validation_error)
+        return cleaned_data
+
 class ProductionOrderAdmin(nested_admin.NestedModelAdmin):
     inlines = [StyleNestedInline]
     date_hierarchy = 'due_date_time'
@@ -57,6 +66,7 @@ class ProductionOrderAdmin(nested_admin.NestedModelAdmin):
     search_fields = ['buyer__buyer']
     save_as = True
     save_as_continue = False
+    form = ProductionOrderAdminForm
 
 admin.site.register(ProductionOrder, ProductionOrderAdmin)
 
