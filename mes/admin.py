@@ -70,6 +70,18 @@ class ProductionSessionBreakAdmin(admin.ModelAdmin):
     list_display = ['start_time', 'end_time']
     search_fields = ['start_time', 'end_time']
 
+    def get_deleted_objects(self, objs, request):
+        """
+        Hook for customizing the delete process for the delete view and the
+        "delete selected" action.
+        """
+        to_delete, model_count, perms_needed, protected = super().get_deleted_objects(objs, request)
+        print(to_delete)
+        for obj in to_delete:
+            if type(obj) == list:
+                protected += obj
+        return to_delete, model_count, perms_needed, protected
+
 admin.site.register(ProductionSessionBreak, ProductionSessionBreakAdmin)
 
 
@@ -128,6 +140,18 @@ class DefectAdmin(admin.ModelAdmin):
     save_as_continue = False
     search_fields = ['defect', 'operation']
     list_filter = ['defect', 'operation']
+
+    def get_deleted_objects(self, objs, request):
+        """
+        Hook for customizing the delete process for the delete view and the
+        "delete selected" action.
+        """
+        to_delete, model_count, perms_needed, protected = super().get_deleted_objects(objs, request)
+        print(to_delete)
+        for obj in to_delete:
+            if type(obj) == list:
+                protected += obj
+        return to_delete, model_count, perms_needed, protected
 
 admin.site.register(Defect, DefectAdmin)
 
