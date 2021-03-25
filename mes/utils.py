@@ -13,32 +13,20 @@ def get_stats(prod_sessions, start_time, end_time):
     total_pieces_processed = 0
     ftt, defective, rejected, rectified, defects, operators, helpers, sam, target = 0, 0, 0, 0, 0, 0, 0, 0, 0
     duration_seconds, elapsed_seconds, remaining_seconds = 0, 0, 0
-    buyers, styles, shifts, lines = '', '', '', ''
+    buyers, styles, shifts, lines = set(), set(), set(), set()
     
     # Accumulate metrics for all production sessions
     for prod_session in prod_sessions:
-
-        if lines != '':
-            lines += ', '
-        lines += str(prod_session.line.number)
-
         style = prod_session.style
-        if styles != '':
-            styles += ', '
-        styles += f'{style.number}'
+        styles.add(style)
+        buyers.add(style.order.buyer)
+        shifts.add(prod_session)
+        lines.add(prod_session.line)
 
         operators += prod_session.operators
         helpers += prod_session.helpers
         sam += style.sam
         
-        if buyers != '':
-            buyers += ', '
-        buyers += style.order.buyer.buyer
-
-        if shifts != '':
-            shifts += ', '
-        shifts += prod_session.get_session_name()
-
         qc_inputs = prod_session.qcinput_set.filter(datetime__gte=start_time, datetime__lt=end_time)
         for qc_input in qc_inputs:
             if qc_input.input_type == QcInput.FTT:
@@ -94,19 +82,31 @@ def get_stats(prod_sessions, start_time, end_time):
 
     stats = {
         "ftt": ftt,
-        "line": lines,
+        "line": ", ".join([str(ele.number) for ele in lines]),
         "target": round(target),
         "production": output,
-        "buyer": buyers,
-        "style": styles,
+        "buyer": ", ".join([ele.buyer for ele in buyers]),
+        "style": ", ".join([ele.number for ele in styles]),
         "defective": defective,
         "rectified": rectified,
         "rejected": rejected,
         "total_pieces_processed": total_pieces_processed,
         "operators": operators,
         "helpers": helpers,
-        "shift": shifts,
+        "shift": ", ".join([ele.get_session_name() for ele in shifts]),
     }
+    
+    from django.db.models import Q
+    total_produced = 0
+    for style in styles:
+        qc_inputs = QcInput.objects.filter(production_session__style=style)
+        qc_inputs = qc_inputs.filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))
+        for qc_input in qc_inputs:
+            total_produced += qc_input.quantity
+    style_quantity = sum([style.quantity() for style in styles])
+    stats["wip"] = style_quantity - total_produced
+    if stats["wip"] < 0:
+        stats["wip"] = 0
 
     # Calculate efficiency
     if manpower > 0 and duration_seconds > 0:

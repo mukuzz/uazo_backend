@@ -313,12 +313,10 @@ class Metric(viewsets.ViewSet):
     def key_stats(self, request):
         start_time, end_time, order_id, style_id, line_id, _ = utils.get_filter_values_from_query_params(request.query_params)
 
-        headings = [
-            "line", "buyer", "style", "production", "target", "target_variance", "rtt",
-            "projected", "dhu", "efficiency", "productivity",
-            # "defective", "rectified" ,"rejected",
-            "operators", "helpers", "shift"
-        ]
+        headings = ["line", "buyer", "style", "production", "target", "target_variance"]
+        if start_time.date() == timezone.localdate(timezone.now()) and end_time.date() == timezone.localdate(timezone.now()):
+            headings += ["rtt", "projected", "wip"]
+        headings += ["dhu", "efficiency", "operators", "helpers", "shift"]
         table_data = []
 
         prod_sessions = utils.get_filtered_prod_sessions(start_time, end_time, order_id, style_id, line_id)
