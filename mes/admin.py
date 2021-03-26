@@ -27,10 +27,10 @@ class StyleAdmin(admin.ModelAdmin):
     list_display = ['number', 'category', 'color', 'order']
     inlines = [SizeQuantityInline]
     filter_horizontal = ['defects']
-    fields = ('order', 'name', 'number', 'category', 'color', 'sam', 'defects')
+    fields = ('order', 'name', 'number', 'category', 'color', 'sam', 'defects', 'operations')
     list_filter = ['order', 'name', 'number', 'category']
     search_fields = ['name', 'number', 'category', 'color']
-    autocomplete_fields = ['order', 'defects']
+    autocomplete_fields = ['order', 'defects', 'operations']
     save_as = True
     save_as_continue = False
 
@@ -46,7 +46,7 @@ class StyleNestedInline(nested_admin.NestedStackedInline):
     model = Style
     extra = 0
     inlines = [SizeQuantityNestedInline]
-    autocomplete_fields = ['defects']
+    autocomplete_fields = ['defects', 'operations']
 
 
 class ProductionOrderAdminForm(ModelForm):
