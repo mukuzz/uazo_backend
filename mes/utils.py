@@ -34,7 +34,7 @@ def get_stats(prod_sessions, start_time, end_time):
                 total_pieces_processed += qc_input.quantity
             elif qc_input.input_type == QcInput.DEFECTIVE:
                 defective += qc_input.quantity
-                defects += qc_input.defects.count() * qc_input.quantity
+                defects += qc_input.operation_defects.count() * qc_input.quantity
                 total_pieces_processed += qc_input.quantity
             elif qc_input.input_type == QcInput.REJECTED:
                 rejected += qc_input.quantity
