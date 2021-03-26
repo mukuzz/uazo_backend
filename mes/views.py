@@ -65,7 +65,7 @@ class DefectViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, url_path="most-frequent")
     def most_frequent(self, request):
-        defects = Defect.objects.annotate(defect_freq=Coalesce(Sum('qcinput__quantity'),0)).order_by('-defect_freq')[:5]
+        defects = Defect.objects.annotate(defect_freq=Coalesce(Sum('operationdefect__qcinput__quantity'),0)).order_by('-defect_freq')[:5]
         data = []
         for defect in defects:
             if defect.defect_freq != None:
@@ -75,6 +75,24 @@ class DefectViewSet(viewsets.ModelViewSet):
                         "operation": defect.operation,
                         "defect": defect.defect,
                         "freq": defect.defect_freq
+                    })
+        return Response({"data": data})
+
+class OperationViewSet(viewsets.ModelViewSet):
+    queryset = Operation.objects.all()
+    serializer_class = OperationSerializer
+
+    @action(detail=False, url_path="most-frequent")
+    def most_frequent(self, request):
+        operations = Operation.objects.annotate(operation_freq=Coalesce(Sum('operationdefect__qcinput__quantity'),0)).order_by('-operation_freq')[:5]
+        data = []
+        for operation in operations:
+            if operation.operation_freq != None:
+                if operation.operation_freq > 0:
+                    data.append({
+                        "id": operation.id,
+                        "operation": operation.operation,
+                        "freq": operation.operation_freq
                     })
         return Response({"data": data})
 
@@ -420,8 +438,8 @@ class Metric(viewsets.ViewSet):
         
         return Response({"headings": headings,"tableData":table_data})
 
-    @action(detail=False, url_path="frequent-defects")
-    def frequent_defects(self, request):
+    @action(detail=False, url_path="frequent-operation-defects")
+    def frequent_operation_defects(self, request):
         start_time, end_time, order_id, style_id, line_id, _ = utils.get_filter_values_from_query_params(request.query_params)
 
         qc_inputs = utils.get_filtered_qc_inputs(start_time, end_time, order_id, style_id, line_id)
@@ -430,21 +448,22 @@ class Metric(viewsets.ViewSet):
 
         defects_data = {}
         for qc_input in qc_inputs:
-            for defect in qc_input.defects.all():
+            for operation_defect in qc_input.operation_defects.all():
                 try:
-                    d_data = defects_data[defect.id]
+                    d_data = defects_data[operation_defect.id]
                     # Add data if defect already added to dict
                     d_data["freq"] += qc_input.quantity
                     d_data["affected_lines"].add(str(qc_input.affected_line)),
                 except KeyError:
-                    defects_data[defect.id] = {
-                        "id": defect.id,
-                        "operation": defect.operation,
-                        "defect": defect.defect,
+                    defects_data[operation_defect.id] = {
+                        "id": operation_defect.id,
+                        "defect": operation_defect.defect.defect,
                         "freq": qc_input.quantity,
                         "affected_lines": set([str(qc_input.affected_line)]),
                     }
-                    
+                    if operation_defect.operation:
+                        defects_data[operation_defect.id]["operation"] = operation_defect.operation.operation
+
         defects_data_list = []
         for key, value in defects_data.items():
             value["affected_lines"] = ", ".join(list(value["affected_lines"]))

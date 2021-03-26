@@ -1,7 +1,7 @@
 from django.contrib import admin
 import nested_admin
 from django.forms import ModelForm, ValidationError
-from mes.models import ProductionOrder, Style, ProductionSession, ProductionSessionBreak, QcInput, DeletedQcInput, Defect, SizeQuantity, Line, LineLocation, Buyer, StyleCategory, QcAppState
+from mes.models import ProductionOrder, Style, ProductionSession, ProductionSessionBreak, QcInput, DeletedQcInput, Defect, SizeQuantity, Line, LineLocation, Buyer, StyleCategory, QcAppState, Operation, OperationDefect
 from django.conf import settings
 from django.utils import timezone
 
@@ -96,7 +96,6 @@ class ProductionSessionBreakAdmin(admin.ModelAdmin):
         "delete selected" action.
         """
         to_delete, model_count, perms_needed, protected = super().get_deleted_objects(objs, request)
-        print(to_delete)
         for obj in to_delete:
             if type(obj) == list:
                 protected += obj
@@ -174,6 +173,7 @@ class QcInputAdmin(admin.ModelAdmin):
     list_display = ['input_type', 'size', 'quantity', 'datetime', 'production_session']
     list_filter = ['input_type', 'production_session']
     ordering = ['-datetime']
+    # autocomplete_fields = ['operation_defects']
 
 admin.site.register(QcInput, QcInputAdmin)
 
@@ -191,11 +191,8 @@ admin.site.register(DeletedQcInput, DeletedQcInputAdmin)
 
 
 class DefectAdmin(admin.ModelAdmin):
-    list_display = ['defect', 'operation']
-    save_as = True
-    save_as_continue = False
-    search_fields = ['defect', 'operation']
-    list_filter = ['defect', 'operation']
+    list_display = ['defect']
+    search_fields = ['defect']
 
     def get_deleted_objects(self, objs, request):
         """
@@ -203,7 +200,6 @@ class DefectAdmin(admin.ModelAdmin):
         "delete selected" action.
         """
         to_delete, model_count, perms_needed, protected = super().get_deleted_objects(objs, request)
-        print(to_delete)
         for obj in to_delete:
             if type(obj) == list:
                 protected += obj
@@ -211,6 +207,29 @@ class DefectAdmin(admin.ModelAdmin):
 
 admin.site.register(Defect, DefectAdmin)
 
+class OperationAdmin(admin.ModelAdmin):
+    list_display = ['operation']
+    search_fields = ['operation']
+
+    def get_deleted_objects(self, objs, request):
+        """
+        Hook for customizing the delete process for the delete view and the
+        "delete selected" action.
+        """
+        to_delete, model_count, perms_needed, protected = super().get_deleted_objects(objs, request)
+        for obj in to_delete:
+            if type(obj) == list:
+                protected += obj
+        return to_delete, model_count, perms_needed, protected
+
+admin.site.register(Operation, OperationAdmin)
+
+class OperationDefectAdmin(admin.ModelAdmin):
+    list_display = ['operation', 'defect']
+    search_fields = ['operation', 'defect']
+    list_filter = ['operation', 'defect']
+
+admin.site.register(OperationDefect, OperationDefectAdmin)
 
 class LineAdmin(admin.ModelAdmin):
     list_display = ['number', 'location']

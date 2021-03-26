@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from mes.models import ProductionOrder, Style, ProductionSession, QcInput, Defect, SizeQuantity, Line, Buyer, StyleCategory, QcAppState
+from mes.models import ProductionOrder, Style, ProductionSession, QcInput, Defect, Operation, SizeQuantity, Line, Buyer, StyleCategory, QcAppState, OperationDefect
 
 
 class BuyerSerializer(serializers.ModelSerializer):
@@ -55,9 +55,27 @@ class DefectSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class OperationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Operation
+        fields = '__all__'
+
+
+class OperationDefectSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OperationDefect
+        fields = '__all__'
+
+
+class OperationDefectPKSerializer(serializers.Serializer):
+    operation_id = serializers.IntegerField(required=False)
+    defect_id = serializers.IntegerField()
+
 class QcInputSerializer(serializers.ModelSerializer):
-    defect_ids = serializers.PrimaryKeyRelatedField(queryset=Defect.objects.all(), many=True, write_only=True)
+    defect_ids = serializers.PrimaryKeyRelatedField(queryset=Defect.objects.all(), many=True, write_only=True, required=False)
     defects = DefectSerializer(many=True, read_only=True)
+    operation_defects_ids = OperationDefectPKSerializer(many=True, required=False)
+    operation_defects = OperationDefectSerializer(many=True, read_only=True)
     id = serializers.CharField(required=True, max_length=36)
 
     class Meta:
@@ -70,11 +88,35 @@ class QcInputSerializer(serializers.ModelSerializer):
         # Remove defect_ids field from validated_data to prevent
         # framework from trying to insert it in the QcInput model
         # which doesn't have the defect_ids field
-        defect_ids = validated_data.pop('defect_ids')
+        try:
+            defect_ids = validated_data.pop('defect_ids')
+        except KeyError:
+            defect_ids = []
+        try:
+            operation_defects_ids = validated_data.pop('operation_defects_ids')
+        except KeyError:
+            operation_defects_ids = []
         qc_input = QcInput.objects.create(**validated_data)
-        if validated_data['input_type'] == 'defective': 
-            for defect_id in defect_ids:
-                qc_input.defects.add(defect_id)
+        if validated_data['input_type'] == 'defective':
+            # TODO: Remove after app is updated everywhere
+            # For un updated apps sending only defect ids
+            if len(operation_defects_ids) == 0:
+                for defect in defect_ids:
+                    operation_defect = OperationDefect.objects.get(operation=None, defect=defect)
+                    qc_input.operation_defects.add(operation_defect)
+            # For updated apps sending operation and defect ids
+            else:
+                for operation_defect_ids in operation_defects_ids:
+                    try:
+                        operation_id = operation_defect_ids['operation_id']
+                    except KeyError:
+                        operation_id = None
+                    try:
+                        defect_id = operation_defect_ids['defect_id']
+                    except KeyError:
+                        defect_id = None
+                    operation_defect = OperationDefect.objects.get(operation__id=operation_id, defect__id=defect_id)
+                    qc_input.operation_defects.add(operation_defect)
         return qc_input
 
 

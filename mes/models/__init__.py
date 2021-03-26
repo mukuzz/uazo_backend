@@ -1,5 +1,5 @@
 from .qc_input import QcInput, DeletedQcInput
-from .defect import Defect
+from .operation_defect import Defect, Operation, OperationDefect
 from .buyer import Buyer
 from .prod_order import ProductionOrder
 from .prod_session import ProductionSession, ProductionSessionBreak

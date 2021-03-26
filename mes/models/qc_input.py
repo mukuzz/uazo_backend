@@ -24,6 +24,7 @@ class QcInputTemplate(models.Model):
     size = models.ForeignKey('mes.SizeQuantity', on_delete=models.PROTECT, null=True, blank=True)
     quantity = models.PositiveIntegerField(default=1)
     defects = models.ManyToManyField('mes.Defect', blank=True)
+    operation_defects = models.ManyToManyField('mes.OperationDefect', blank=True)
     production_session = models.ForeignKey('mes.ProductionSession', on_delete=models.PROTECT)
     creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
 
@@ -60,6 +61,8 @@ def migrate_qc_input(sender, instance, **kwargs):
     if instance.input_type == 'defective':
         for defect in instance.defects.all():
             delted_qc_input.defects.add(defect.pk)
+        for operation_defect in instance.operation_defects.all():
+            delted_qc_input.operation_defects.add(operation_defect.pk)
 
 pre_delete.connect(migrate_qc_input, QcInput)
 
