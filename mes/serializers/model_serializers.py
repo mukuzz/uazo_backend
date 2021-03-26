@@ -27,9 +27,24 @@ class StyleCategorySerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class DefectSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Defect
+        fields = '__all__'
+
+
+class OperationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Operation
+        fields = '__all__'
+
+
 class StyleSerializer(serializers.ModelSerializer):
-    size_quantities = SizeQuantitySerializer(source='sizequantity_set',many=True, read_only=True)
+    size_quantities = SizeQuantitySerializer(source='sizequantity_set', many=True, read_only=True)
     category = StyleCategorySerializer()
+    defects = DefectSerializer(many=True, read_only=True)
+    operations = OperationSerializer(many=True, read_only=True)
+    order_details = ProductionOrderSerializer(source='order', read_only=True)
 
     class Meta:
         model = Style
@@ -46,18 +61,6 @@ class ProductionSessionSerializer(serializers.ModelSerializer):
     line = LineSerializer()
     class Meta:
         model = ProductionSession
-        fields = '__all__'
-
-
-class DefectSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Defect
-        fields = '__all__'
-
-
-class OperationSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Operation
         fields = '__all__'
 
 
