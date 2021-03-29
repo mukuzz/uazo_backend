@@ -363,23 +363,9 @@ class Metric(viewsets.ViewSet):
 
         prod_sessions = utils.get_prod_sessions_for_time_range(start_time, end_time)
         prod_sessions = utils.apply_filters_on_prod_sessions(prod_sessions, order_id, style_id, line_id)
-        prod_start_time, prod_end_time = utils.get_prod_sessions_timings(prod_sessions)
-        prod_breaks = utils.get_prod_sessions_breaks(prod_sessions)
+        prod_hours = utils.get_prod_hours(prod_sessions)
 
-        hour = 0
-        while True:
-            time_filter_start = prod_start_time + timedelta(hours=1*hour)
-            time_filter_end = time_filter_start + timedelta(hours=1)
-            hour += 1
-            time_filter_start, time_filter_end = utils.adjust_timing_for_breaks(time_filter_start,time_filter_end,prod_breaks)
-            # Skip this duration as it's completely inside a break timing
-            if time_filter_start == time_filter_end:
-                continue
-            # End loop when all hours have been accounted for
-            if time_filter_end >= prod_end_time:
-                time_filter_end = prod_end_time
-            if time_filter_start >= time_filter_end:
-                break
+        for time_filter_start, time_filter_end in prod_hours:
             stats = utils.get_stats(prod_sessions, time_filter_start, time_filter_end)
             if stats != None:
                 table_row = [f'{time_filter_start.strftime("%I:%M %p")} - {time_filter_end.strftime("%I:%M %p")}']
@@ -401,8 +387,7 @@ class Metric(viewsets.ViewSet):
 
         prod_sessions = utils.get_prod_sessions_for_time_range(start_time, end_time)
         prod_sessions = utils.apply_filters_on_prod_sessions(prod_sessions, order_id, style_id, line_id)
-        prod_start_time, prod_end_time = utils.get_prod_sessions_timings(prod_sessions)
-        prod_breaks = utils.get_prod_sessions_breaks(prod_sessions)
+        prod_hours = utils.get_prod_hours(prod_sessions)
 
         if line_id is not None:
             lines = Line.objects.filter(id=line_id)
@@ -411,20 +396,7 @@ class Metric(viewsets.ViewSet):
         lines = lines.order_by('number')
             
         headings += [f'Line {line.number}' for line in lines]
-        hour = 0
-        while True:
-            time_filter_start = prod_start_time + timedelta(hours=1*hour)
-            time_filter_end = time_filter_start + timedelta(hours=1)
-            hour += 1
-            time_filter_start, time_filter_end = utils.adjust_timing_for_breaks(time_filter_start,time_filter_end,prod_breaks)
-            # Skip this duration as it's completely inside a break timing
-            if time_filter_start == time_filter_end:
-                continue
-            # End loop when all hours have been accounted for
-            if time_filter_end >= prod_end_time:
-                time_filter_end = prod_end_time
-            if time_filter_start >= time_filter_end:
-                break
+        for time_filter_start, time_filter_end in prod_hours:
             table_row = [f'{time_filter_start.strftime("%I:%M %p")} - {time_filter_end.strftime("%I:%M %p")}']
             for line in lines:
                 production_sessions = prod_sessions.filter(line=line)

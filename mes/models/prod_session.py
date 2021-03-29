@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils import timezone
+import datetime
 from .style import Style
 from .line import Line
 from django.conf import settings
@@ -44,6 +45,23 @@ class ProductionSession(models.Model):
             return f'{local_start_time.strftime("%H:%M")} ({local_start_time.strftime("%d/%m/%Y")}) to {local_end_time.strftime("%H:%M")} ({local_end_time.strftime("%d/%m/%Y")})'
         else:
             return f'{local_start_time.strftime("%H:%M")} to {local_end_time.strftime("%H:%M")} ({local_start_time.strftime("%d/%m/%Y")})'
+    
+    def get_breaks_in_datetime(self):
+        prod_breaks = []
+        for prod_session_break in self.breaks.all():
+            local_date_time = timezone.localtime(self.start_time)
+            prod_session_break.start_time = datetime.datetime.combine(
+                local_date_time.date(),
+                prod_session_break.start_time,
+                tzinfo=local_date_time.tzinfo
+            )
+            prod_session_break.end_time = datetime.datetime.combine(
+                local_date_time.date(),
+                prod_session_break.end_time,
+                tzinfo=local_date_time.tzinfo
+            )
+            prod_breaks.append(prod_session_break)
+        return prod_breaks
     
     @staticmethod
     def get_active():

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from mes.models import ProductionOrder, Style, ProductionSession, QcInput, Defect, Operation, SizeQuantity, Line, Buyer, StyleCategory, QcAppState, OperationDefect
+from mes.models import ProductionOrder, Style, ProductionSession, ProductionSessionBreak, QcInput, Defect, Operation, SizeQuantity, Line, Buyer, StyleCategory, QcAppState, OperationDefect
 
 
 class BuyerSerializer(serializers.ModelSerializer):
@@ -57,8 +57,18 @@ class LineSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class ProductionSessionBreakSerializer(serializers.ModelSerializer):
+    start_time = serializers.DateTimeField()
+    end_time = serializers.DateTimeField()
+
+    class Meta:
+        model = ProductionSessionBreak
+        fields = '__all__'
+
+
 class ProductionSessionSerializer(serializers.ModelSerializer):
     line = LineSerializer()
+    breaks = ProductionSessionBreakSerializer(source='get_breaks_in_datetime', many=True)
     class Meta:
         model = ProductionSession
         fields = '__all__'

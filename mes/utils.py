@@ -186,19 +186,7 @@ def get_prod_sessions_timings(prod_sessions):
 def get_prod_sessions_breaks(prod_sessions):
     breaks = set()
     for prod_session in prod_sessions:
-        for prod_session_break in prod_session.breaks.all():
-            local_date_time = timezone.localtime(prod_session.start_time)
-            prod_session_break.start_time = datetime.datetime.combine(
-                local_date_time.date(),
-                prod_session_break.start_time,
-                tzinfo=local_date_time.tzinfo
-            )
-            prod_session_break.end_time = datetime.datetime.combine(
-                local_date_time.date(),
-                prod_session_break.end_time,
-                tzinfo=local_date_time.tzinfo
-            )
-            breaks.add(prod_session_break)
+        breaks.update(prod_session.get_breaks_in_datetime())
     return list(breaks)
 
 def get_breaks_duration(prod_sessions):
@@ -229,6 +217,29 @@ def adjust_timing_for_breaks(start_time, end_time, prod_breaks):
         elif start_time <= prod_session_break.end_time and end_time > prod_session_break.end_time:
             start_time = prod_session_break.end_time
     return start_time, end_time
+
+def get_prod_hours(prod_sessions):
+    prod_start_time, prod_end_time = get_prod_sessions_timings(prod_sessions)
+    prod_breaks = get_prod_sessions_breaks(prod_sessions)
+    prod_hours = []
+    pointer_date_time = prod_start_time
+    while pointer_date_time < prod_end_time:
+        part_start = pointer_date_time
+        part_end = part_start + datetime.timedelta(hours=1)
+        for prod_break in prod_breaks:
+            if part_start < prod_break.start_time:
+                if part_end > prod_break.start_time:
+                    part_end = prod_break.start_time
+            elif part_start < prod_break.end_time:
+                time_diff = prod_break.end_time - part_start
+                part_start += time_diff
+                part_end += time_diff
+        if part_end > prod_end_time:
+            part_end = prod_end_time
+        if part_start < part_end:
+            prod_hours.append((part_start, part_end))
+        pointer_date_time = part_end
+    return prod_hours
 
 def get_filtered_prod_sessions(start_time, end_time, order_id, style_id, line_id):
     prod_sessions = get_prod_sessions_for_time_range(start_time, end_time)
