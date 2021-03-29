@@ -42,6 +42,10 @@ def get_stats(prod_sessions, start_time, end_time):
                     total_pieces_processed += qc_input.quantity
             elif qc_input.input_type == QcInput.RECTIFIED:
                 rectified += qc_input.quantity
+        # if rectified count is more than defective count.
+        # There difference should be added to total_pieces_processed count
+        if rectified > defective:
+            total_pieces_processed += rectified - defective
 
         # For accurate calculation bring time period in range of current production session
         adjusted_start_time, adjusted_end_time = start_time, end_time
@@ -195,28 +199,6 @@ def get_breaks_duration(prod_sessions):
     for prod_break in prod_breaks:
         duration += prod_break.end_time - prod_break.start_time
     return duration
-
-# def adjust_timing_for_breaks(start_time, end_time, prod_breaks):
-#     from datetime import timedelta
-#     for prod_session_break in prod_breaks:
-#         if start_time >= prod_session_break.start_time:
-#             time_diff = prod_session_break.end_time - start_time
-#             if time_diff < datetime.timedelta(seconds=0):
-#                 time_diff = prod_session_break.end_time - prod_session_break.start_time
-#             start_time += time_diff
-#             end_time += time_diff
-#     return start_time, end_time
-
-def adjust_timing_for_breaks(start_time, end_time, prod_breaks):
-    from datetime import timedelta
-    for prod_session_break in prod_breaks:
-        if start_time < prod_session_break.start_time and end_time >= prod_session_break.start_time:
-            end_time = prod_session_break.start_time
-        elif start_time >= prod_session_break.start_time and end_time <= prod_session_break.end_time:
-            start_time = end_time
-        elif start_time <= prod_session_break.end_time and end_time > prod_session_break.end_time:
-            start_time = prod_session_break.end_time
-    return start_time, end_time
 
 def get_prod_hours(prod_sessions):
     prod_start_time, prod_end_time = get_prod_sessions_timings(prod_sessions)
