@@ -224,26 +224,34 @@ class Metric(viewsets.ViewSet):
             raise serializers.ValidationError({"date range should be less than or equal to 90 days"})
 
         labels, data = [], []
-        output = 0
 
-        qc_inputs = QcInput.objects\
+        res = QcInput.objects\
+            .filter(production_session__style__order__completed=False)\
             .filter(datetime__lte=prod_start_time)\
-            .filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))
-        for qc_input in qc_inputs:
-            output += qc_input.quantity
-        if output > 0:
-            labels.append(timezone.localtime(prod_start_time))
-            data.append(output)
+            .filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))\
+            .aggregate(output=Coalesce(Sum('quantity'),0))
+        output_till_date = res['output']
         
         qc_inputs = QcInput.objects\
             .filter(datetime__gt=start,datetime__lte=end)\
             .filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))\
             .order_by('datetime')
 
+        output = output_till_date
         for qc_input in qc_inputs:
             output += qc_input.quantity
             labels.append(timezone.localtime(qc_input.datetime))
             data.append(output)
+        
+        if output_till_date > 0:
+            if len(labels) > 0:
+                if labels[0] > prod_start_time:
+                    labels.insert(0, timezone.localtime(prod_start_time))
+                    data.insert(0, output_till_date)
+            else:
+                labels.append(timezone.localtime(prod_start_time))
+                data.append(output_till_date)
+            
         return Response({"labels":labels, "data": data})
     
     @action(detail=False, url_path="active-lines")

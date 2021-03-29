@@ -76,9 +76,8 @@ def get_stats(prod_sessions, start_time, end_time):
             remaining_seconds += computation_time_range_duration
         else:
             elapsed_seconds_for_this_session = (current_time - adjusted_start_time).total_seconds()
-            if elapsed_seconds_for_this_session > computation_time_range_duration:
-                elapsed_seconds_for_this_session = computation_time_range_duration
-            elapsed_seconds += elapsed_seconds_for_this_session
+            breaks_duration_elapsed = get_breaks_duration_elapsed(adjusted_start_time, adjusted_end_time, prod_session).total_seconds()
+            elapsed_seconds += elapsed_seconds_for_this_session - breaks_duration_elapsed
             remaining_seconds += (adjusted_end_time - current_time).total_seconds()
     
     output = ftt + rectified
@@ -199,6 +198,22 @@ def get_breaks_duration(prod_sessions):
     for prod_break in prod_breaks:
         duration += prod_break.end_time - prod_break.start_time
     return duration
+
+def get_breaks_duration_elapsed(start_time, end_time, prod_session):
+    prod_breaks = get_prod_sessions_breaks([prod_session])
+    breaks_duration_elapsed = datetime.timedelta(seconds=0)
+    current_date_time = timezone.localtime(timezone.now())
+    for prod_break in prod_breaks:
+        # If break timing is between the provided time range include the break duration in total
+        if prod_break.start_time >= start_time and prod_break.end_time <= end_time:
+            if current_date_time > prod_break.start_time:
+                break_duration_elapsed = current_date_time - prod_break.start_time
+                break_duration = prod_break.end_time - prod_break.start_time
+                if break_duration_elapsed > break_duration:
+                    breaks_duration_elapsed += break_duration
+                else:
+                    breaks_duration_elapsed += break_duration_elapsed
+    return breaks_duration_elapsed
 
 def get_prod_hours(prod_sessions):
     prod_start_time, prod_end_time = get_prod_sessions_timings(prod_sessions)
