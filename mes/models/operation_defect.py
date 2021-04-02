@@ -33,11 +33,11 @@ post_save.connect(create_operation_defects_for_new_defect, Defect)
 
 
 class Operation(models.Model):
-    operation = models.CharField(verbose_name="part", max_length=256, unique=True)
+    operation = models.CharField(verbose_name="operation", max_length=256, unique=True)
 
     class Meta:
-        verbose_name = "Part"
-        verbose_name_plural = "Parts"
+        verbose_name = "Operation"
+        verbose_name_plural = "Operations"
 
     def __str__(self):
         return self.operation

@@ -12,16 +12,16 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AlterModelOptions(
             name='operation',
-            options={'verbose_name': 'Part', 'verbose_name_plural': 'Parts'},
+            options={'verbose_name': 'Operation', 'verbose_name_plural': 'Operations'},
         ),
         migrations.AddField(
             model_name='style',
             name='operations',
-            field=models.ManyToManyField(to='mes.Operation', verbose_name='parts'),
+            field=models.ManyToManyField(to='mes.Operation', verbose_name='operations'),
         ),
         migrations.AlterField(
             model_name='operation',
             name='operation',
-            field=models.CharField(max_length=256, unique=True, verbose_name='part'),
+            field=models.CharField(max_length=256, unique=True, verbose_name='operation'),
         ),
     ]

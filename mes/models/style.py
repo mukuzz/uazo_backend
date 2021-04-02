@@ -20,7 +20,7 @@ class Style(models.Model):
     name = models.CharField(max_length=256, blank=True)
     sam = models.FloatField(validators=[MinValueValidator(0.001, message="sam should be greater than 0")])
     defects = models.ManyToManyField('mes.Defect')
-    operations = models.ManyToManyField('mes.Operation', verbose_name='parts')
+    operations = models.ManyToManyField('mes.Operation', verbose_name='operations')
     order = models.ForeignKey('mes.ProductionOrder', on_delete=models.PROTECT)
 
     def __str__(self):
