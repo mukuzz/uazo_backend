@@ -17,7 +17,7 @@ class OperationDefect(models.Model):
 
 
 class Defect(models.Model):
-    operation = models.CharField(max_length=256)
+    operation = models.CharField(max_length=256, blank=True)
     defect = models.CharField(max_length=256, unique=True)
 
     def __str__(self):
