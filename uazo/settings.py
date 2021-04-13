@@ -27,34 +27,20 @@ SECRET_KEY = os.environ['SECRET_KEY']
 
 DEBUG = os.environ.get('DJANGO_DEV_ENV', '') == 'True'
 
-ALLOWED_HOSTS = ['localhost','10.0.2.2','uazo-serve.herokuapp.com', 'uazo-demo2.herokuapp.com', 'admin.uazo.in']
-CORS_ALLOWED_ORIGINS = ["http://localhost:3000","https://dashboard.uazo.in","https://demo2.uazo.in"]
+ALLOWED_HOSTS = ['.localhost', '10.0.2.2', '.uazo.in']
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r'^http://(\w+\.)?localhost:3000$',
+    r'^https://(\w+\.)?uazo\.in$',
+]
 
 if DEBUG:
     print('Running in DEVELOPMENT mode')
 else:
     print('Running in PRODUCTION mode')
 
-
-# Application definition
-
-INSTALLED_APPS = [
-    'channels',
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'corsheaders',
-    'rest_framework',
-    'rest_framework.authtoken',
-    'nested_admin',
-    'mes',
-    'sse',
-]
-
 MIDDLEWARE = [
+    'django_tenants.middleware.TenantMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -65,11 +51,6 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-
-# https redirect for heroku
-if DEBUG == False:
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    SECURE_SSL_REDIRECT = True
 
 ROOT_URLCONF = 'uazo.urls'
 
@@ -177,8 +158,43 @@ CHANNEL_LAYERS = {
     },
 }
 
+# Settings for multi tenant support using django-tenant-schemas
 
 # Update database configuration from $DATABASE_URL
 import dj_database_url
-db_from_env = dj_database_url.config(conn_max_age=500)
+db_from_env = dj_database_url.config(conn_max_age=500, engine='django_tenants.postgresql_backend')
 DATABASES['default'].update(db_from_env)
+
+DATABASE_ROUTERS = (
+    'django_tenants.routers.TenantSyncRouter',
+)
+
+SHARED_APPS = (
+    'django_tenants', # mandatory, should always be before any django app
+    'channels',
+
+    'customers', # must list the app where tenant model resides in
+)
+
+TENANT_APPS = (
+    'mes',
+    'sse',
+    'django.contrib.contenttypes',
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'corsheaders',
+    'rest_framework',
+    'rest_framework.authtoken',
+    'nested_admin',
+)
+
+INSTALLED_APPS = list(SHARED_APPS) + [app for app in TENANT_APPS if app not in SHARED_APPS]
+
+TENANT_MODEL = 'customers.Factory' # app.model
+
+TENANT_DOMAIN_MODEL = 'customers.Domain' # app.model
+
+TENANT_COLOR_ADMIN_APPS = False
