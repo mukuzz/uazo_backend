@@ -23,13 +23,12 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "uazo.settings")
 django_asgi_app = get_asgi_application()
 
 from sse import routing
-from sse.authentication import TokenAuthMiddleware
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'uazo.settings')
 
 application = ProtocolTypeRouter({
-	"http": TokenAuthMiddleware(URLRouter([
+	"http": URLRouter([
 		re_path(r'^sse/event/$', routing.urlpatterns),
 		re_path(r'^.*$', django_asgi_app)
-	]))
+	])
 })

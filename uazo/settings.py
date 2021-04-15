@@ -172,6 +172,7 @@ DATABASE_ROUTERS = (
 SHARED_APPS = (
     'django_tenants', # mandatory, should always be before any django app
     'channels',
+    'django.contrib.contenttypes',
 
     'customers', # must list the app where tenant model resides in
 )
