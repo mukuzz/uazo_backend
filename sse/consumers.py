@@ -45,7 +45,8 @@ class AsyncHttpSseConsumer(AsyncHttpConsumer):
 class SseConsumer(AsyncHttpSseConsumer):
 
 	async def handle(self, body):
-		self.room_group_name = 'sse_group'
+		tenant_schema_name = await self.get_tenant_name(self.scope)
+		self.room_group_name = 'sse_group_' + tenant_schema_name
 		await self.channel_layer.group_add(
 			self.room_group_name,
 			self.channel_name
@@ -86,3 +87,10 @@ class SseConsumer(AsyncHttpSseConsumer):
 		# 	await self.send_body(payload.encode("utf-8"), more_body=False)
 		# 	return False
 		return True
+
+	async def get_tenant_name(self, scope):
+		host = dict(self.scope['headers'])[b'host'].decode('utf-8')
+		host_arr = host.split('.')
+		if len(host_arr) > 0:
+			return host_arr[0]
+		return ''

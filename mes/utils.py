@@ -99,17 +99,17 @@ def get_stats(prod_sessions, start_time, end_time):
         "shift": ", ".join([ele.get_session_name() for ele in shifts]),
     }
     
-    from django.db.models import Q
-    total_produced = 0
-    for style in styles:
-        qc_inputs = QcInput.objects.filter(production_session__style=style)
-        qc_inputs = qc_inputs.filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))
-        for qc_input in qc_inputs:
-            total_produced += qc_input.quantity
-    style_quantity = sum([style.quantity() for style in styles])
-    stats["wip"] = style_quantity - total_produced
-    if stats["wip"] < 0:
-        stats["wip"] = 0
+    # from django.db.models import Q
+    # total_produced = 0
+    # for style in styles:
+    #     qc_inputs = QcInput.objects.filter(production_session__style=style)
+    #     qc_inputs = qc_inputs.filter(Q(input_type=QcInput.FTT) | Q(input_type=QcInput.RECTIFIED))
+    #     for qc_input in qc_inputs:
+    #         total_produced += qc_input.quantity
+    # style_quantity = sum([style.quantity() for style in styles])
+    # stats["wip"] = style_quantity - total_produced
+    # if stats["wip"] < 0:
+    #     stats["wip"] = 0
 
     # Calculate efficiency
     if manpower > 0 and duration_seconds > 0:

@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, connection
 from django.utils import timezone
 from django.db.models.signals import pre_delete, post_save, post_delete
 from django.dispatch import receiver
@@ -73,7 +73,7 @@ from asgiref.sync import async_to_sync
 def send_channels_message(sender, instance, **kwargs):
     layer = get_channel_layer()
     async_to_sync(layer.group_send)(
-        "sse_group",
+        "sse_group_" + connection.schema_name,
         {
             "type": "send_new_qcinput_update"
         }

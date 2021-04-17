@@ -341,7 +341,7 @@ class Metric(viewsets.ViewSet):
 
         headings = ["line", "buyer", "style", "production", "target", "target_variance"]
         if start_time.date() == timezone.localdate(timezone.now()) and end_time.date() == timezone.localdate(timezone.now()):
-            headings += ["rtt", "projected", "wip"]
+            headings += ["rtt", "projected"]
         headings += ["dhu", "efficiency", "operators", "helpers", "shift"]
         table_data = []
 
