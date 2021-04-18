@@ -9,12 +9,6 @@ class OperationDefect(models.Model):
         if not self.operation:
             return self.defect.defect
         return f'{self.operation.operation} - {self.defect.defect}'
-    
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(fields=['operation', 'defect'], name='unique_operation_defect')
-        ]
-
 
 class Defect(models.Model):
     operation = models.CharField(max_length=256, blank=True)
