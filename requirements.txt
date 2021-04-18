@@ -23,6 +23,7 @@ Django==3.1.5
 django-cors-headers==3.7.0
 django-filter==2.4.0
 django-nested-admin==3.3.3
+django-tenants==3.2.1
 djangorestframework==3.12.2
 gunicorn==20.0.4
 hiredis==1.1.0
@@ -34,6 +35,7 @@ ipaddr==2.2.0
 lockfile==0.12.2
 Markdown==3.3.3
 msgpack==1.0.2
+ordered-set==4.0.2
 packaging==20.3
 pep517==0.8.2
 progress==1.5
