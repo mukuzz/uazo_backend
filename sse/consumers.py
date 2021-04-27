@@ -3,6 +3,7 @@ from channels.exceptions import StopConsumer
 from datetime import datetime
 from django.contrib.auth.models import AnonymousUser
 from asgiref.sync import sync_to_async
+from urllib.parse import urlparse
 
 
 class AsyncHttpSseConsumer(AsyncHttpConsumer):
@@ -45,18 +46,25 @@ class AsyncHttpSseConsumer(AsyncHttpConsumer):
 class SseConsumer(AsyncHttpSseConsumer):
 
 	async def handle(self, body):
-		tenant_schema_name = await self.get_tenant_name(self.scope)
-		self.room_group_name = 'sse_group_' + tenant_schema_name
-		await self.channel_layer.group_add(
-			self.room_group_name,
-			self.channel_name
-		)
 		await self.send_headers(headers=[
 			(b"Cache-Control", b"no-cache"),
 			(b"Content-Type", b"text/event-stream"),
 			(b"access-control-allow-origin", b"*"),
 			# (b"Transfer-Encoding", b"chunked")
 		])
+
+		self.tenant_schema_name = await self.get_tenant_name(self.scope)
+		if self.tenant_schema_name == None:
+			payload = "retry: 86400000\n\n"
+			await self.send_body(payload.encode("utf-8"), more_body=False)
+			self.http_disconnect()
+		
+		self.room_group_name = 'sse_group_' + self.tenant_schema_name
+		await self.channel_layer.group_add(
+			self.room_group_name,
+			self.channel_name
+		)
+
 		# The ASGI spec requires that the protocol server only starts
 		# sending the response to the client after ``self.send_body`` has been
 		# called the first time.
@@ -67,10 +75,11 @@ class SseConsumer(AsyncHttpSseConsumer):
 		
 
 	async def disconnect(self):
-		await self.channel_layer.group_discard(
-			self.room_group_name,
-			self.channel_name
-		)
+		if self.tenant_schema_name:
+			await self.channel_layer.group_discard(
+				self.room_group_name,
+				self.channel_name
+			)
   
 	async def send_new_qcinput_update(self, event):
 		if await self.check_authentication() == True:
@@ -90,7 +99,15 @@ class SseConsumer(AsyncHttpSseConsumer):
 
 	async def get_tenant_name(self, scope):
 		host = dict(self.scope['headers'])[b'host'].decode('utf-8')
-		host_arr = host.split('.')
+		host = urlparse(host).path
+		if host == None:
+			return None
+		# Remove port if present
+		host_arr = host.split(':')
 		if len(host_arr) > 0:
+			host = host_arr[0]
+		# Extract subdomain which is the tenant name
+		host_arr = host.split('.')
+		if len(host_arr) > 1:
 			return host_arr[0]
-		return ''
+		return None

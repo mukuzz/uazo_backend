@@ -19,18 +19,14 @@ class SizeQuantityInline(admin.StackedInline):
     verbose_name = "Size Quantity"
     verbose_name_plural = "Size Quantities"
 
-class StyleInline(admin.StackedInline):
-    model = Style
-    extra = 0
-
 class StyleAdmin(admin.ModelAdmin):
     list_display = ['number', 'category', 'color', 'order']
     inlines = [SizeQuantityInline]
-    filter_horizontal = ['defects']
+    filter_horizontal = ['operations', 'defects']
     fields = ('order', 'name', 'number', 'category', 'color', 'sam', 'defects', 'operations')
     list_filter = ['order', 'name', 'number', 'category']
     search_fields = ['name', 'number', 'category', 'color']
-    autocomplete_fields = ['order', 'defects', 'operations']
+    autocomplete_fields = ['order']
     save_as = True
     save_as_continue = False
 
@@ -46,8 +42,7 @@ class StyleNestedInline(nested_admin.NestedStackedInline):
     model = Style
     extra = 0
     inlines = [SizeQuantityNestedInline]
-    autocomplete_fields = ['defects', 'operations']
-
+    filter_horizontal = ['operations', 'defects']   
 
 class ProductionOrderAdminForm(ModelForm):
     def clean(self):
@@ -105,19 +100,25 @@ admin.site.register(ProductionSessionBreak, ProductionSessionBreakAdmin)
 
 
 class ProductionSessionAdminForm(ModelForm):
+    
     def clean(self):
         cleaned_data = super().clean()
-        start_time = cleaned_data['start_time']
-        end_time = cleaned_data['end_time']
-        if start_time.date() != end_time.date():
-            raise ValidationError('Production session cannot last more than one day')
-        for prod_break in cleaned_data['breaks']:
-            if prod_break.start_time < start_time.time() or prod_break.end_time > end_time.time():
-                raise ValidationError('Break timings should be within production session timings.')
-        if start_time >= end_time:
-            validation_error = ValidationError('End time should be after start time')
-            # add_error removes the field data from dict
-            self.add_error('end_time', validation_error)
+        try:
+            start_time = cleaned_data['start_time']
+            end_time = cleaned_data['end_time']
+            breaks = cleaned_data['breaks']
+        except KeyError:
+            pass
+        else:
+            if start_time.date() != end_time.date():
+                raise ValidationError('Production session cannot last more than one day')
+            for prod_break in breaks:
+                if prod_break.start_time < start_time.time() or prod_break.end_time > end_time.time():
+                    raise ValidationError('Break timings should be within production session timings.')
+            if start_time >= end_time:
+                validation_error = ValidationError('End time should be after start time')
+                # add_error removes the field data from dict
+                self.add_error('end_time', validation_error)
         return cleaned_data
 
 class ProductionSessionAdmin(admin.ModelAdmin):
