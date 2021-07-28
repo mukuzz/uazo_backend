@@ -4,6 +4,10 @@ from django.utils import timezone
 import datetime
 
 def get_stats(prod_sessions, start_time, end_time):
+    # limit data to before current time
+    if end_time > timezone.now():
+        end_time = timezone.now()
+
     if start_time > end_time:
         return None
 
